@@ -4,7 +4,10 @@
 //! When `ARDON_STUDIO_DRIVE` names a file, its lines are taken as commands, one
 //! per frame, and the file is removed: `text ...`, `enter`, `ctrlenter`,
 //! `ctrlshiftenter`, `esc`, `backspace`, `click X Y`, `wheel DY`, `ctrls`,
-//! and `do ACTION` for a menu action (with a path, in place of a file dialog).
+//! `move X Y`, `wait N` (frames), and `do ACTION` for a menu action (with a
+//! path, in place of a file dialog). `do sakha.test:ID:A,B+C=TYPED` runs
+//! Sakha's analysis ID with A in its first role, B and C in its second, as
+//! its dialog would, so scripts need not know where the dialog's rows are.
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -29,6 +32,10 @@ pub(crate) fn inject(ctx: &mut FrameCtx) {
         if std::fs::remove_file(&path).is_ok() { q.extend(text.lines().map(String::from)); }
     }
     let Some(line) = q.pop_front() else { return };
+    if let Some(n) = line.strip_prefix("wait ").and_then(|n| n.trim().parse::<u32>().ok()) {
+        if n > 1 { q.push_front(format!("wait {}", n - 1)); }
+        return;
+    }
     let (cmd, rest) = line.split_once(' ').unwrap_or((line.as_str(), ""));
     let ctrl = Mods { ctrl: true, ..Mods::default() };
     let mut ev: Vec<InputEvent> = ctx.events.to_vec();
@@ -42,6 +49,10 @@ pub(crate) fn inject(ctx: &mut FrameCtx) {
         "esc" => ev.extend(key(KeyCode::Escape, Mods::default())),
         "backspace" => ev.extend(key(KeyCode::Backspace, Mods::default())),
         "wheel" => ev.push(InputEvent::Scroll { dy: rest.trim().parse().unwrap_or(0.0) }),
+        "move" => {
+            let mut n = rest.split_whitespace().filter_map(|s| s.parse::<f32>().ok());
+            ev.push(InputEvent::MouseMoved(MousePos { x: n.next().unwrap_or(0.0), y: n.next().unwrap_or(0.0) }));
+        }
         "click" => {
             let mut n = rest.split_whitespace().filter_map(|s| s.parse::<f32>().ok());
             let pos = MousePos { x: n.next().unwrap_or(0.0), y: n.next().unwrap_or(0.0) };
@@ -52,4 +63,20 @@ pub(crate) fn inject(ctx: &mut FrameCtx) {
         _ => {}
     }
     ctx.events = Box::leak(ev.into_boxed_slice());
+}
+
+impl crate::Gui {
+    /// `sakha.test:ID:roles`: run an analysis on variables named in the script.
+    pub(crate) fn drive_run(&mut self, spec: &str) {
+        let Some((id, rest)) = spec.split_once(':') else { return };
+        let (roles, typed) = rest.split_once('=').unwrap_or((rest, ""));
+        let (Some(a), Some(df)) = (sakha_core::analysis::find(id), self.sakha.df.clone()) else { return };
+        let cols = &self.sakha.cols;
+        let picks: Vec<Vec<usize>> = roles.split(',')
+            .map(|r| r.split('+').filter_map(|n| cols.iter().position(|c| c.name == n.trim())).collect()).collect();
+        match a.build(&df, cols, &picks, typed) {
+            Ok(b) => self.run_analysis(a, b),
+            Err(e) => self.sakha.status = e,
+        }
+    }
 }

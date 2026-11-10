@@ -114,6 +114,12 @@ pub struct Built {
     pub code: Vec<String>,
     /// Asked quietly afterwards through `value`, for the plain-words line.
     pub statistic: Option<String>,
+    /// The variables picked, role by role (a model's predictors joined by
+    /// " + "): what a table's row is called.
+    pub labels: Vec<String>,
+    /// Asked quietly afterwards through `value`: the numbers a publishable
+    /// table reads, as one numeric vector laid out as [`crate::tables`] expects.
+    pub numbers: Option<String>,
 }
 
 impl Analysis {
@@ -132,6 +138,9 @@ impl Analysis {
                 .filter_map(|&i| cols.get(i)).map(|p| name_ref(&p.name)).collect();
             if names.is_empty() { Err(format!("Choose: {}", self.roles[role].label)) } else { Ok(names.join(" + ")) }
         };
+        let labels: Vec<String> = (0..self.roles.len()).map(|r| picks.get(r).into_iter().flatten()
+            .filter_map(|&i| cols.get(i)).map(|p| p.name.clone()).collect::<Vec<_>>().join(" + ")).collect();
+        let numbers = crate::tables::numbers_code(self.id, df, cols, picks, typed);
         let (title, code, statistic): (String, Vec<String>, Option<String>) = match self.id {
             "freq" => {
                 let x = c(0)?;
@@ -193,7 +202,7 @@ impl Analysis {
             "bar" => (format!("Bar chart of {}", shown(0)?), vec![format!("barplot(table({}))", c(0)?)], None),
             other => return Err(format!("unknown analysis '{other}'")),
         };
-        Ok(Built { title, code, statistic })
+        Ok(Built { title, code, statistic, labels, numbers })
     }
 
     /// How to read a result with no statistic behind it.
@@ -246,7 +255,7 @@ fn density_code(col: &str, name: &str) -> Vec<String> {
 }
 
 /// `chisq.test` on a contingency table written out as a matrix.
-fn chisq_call(df: &str, a: &ColumnProfile, b: &ColumnProfile) -> String {
+pub(crate) fn chisq_call(df: &str, a: &ColumnProfile, b: &ColumnProfile) -> String {
     let (ca, cb) = (col_ref(df, &a.name), col_ref(df, &b.name));
     let quote = |s: &str| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""));
     let mut cells = Vec::new();

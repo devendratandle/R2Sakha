@@ -232,3 +232,39 @@ fn the_r2_gaps_sakha_works_around_are_still_there() {
     let plot = reply.unwrap()["plot"].as_str().unwrap_or("").to_string();
     assert!(plot.contains("<svg") && !plot.contains("stroke-dasharray"), "--ide now sends overlays: drop ask_whole_plot");
 }
+
+#[test]
+fn every_table_reads_r2_numbers_that_agree_with_its_statistic() {
+    use sakha_core::tables::{build, Entry, Numbers};
+    let Some(mut e) = session() else { return };
+    let cols = profiled(&mut e);
+    let at = |n: &str| cols.iter().position(|c| c.name == n).unwrap();
+    // id, picks, typed value, where p (or R-squared) sits in the numbers, the table's row count
+    let cases: Vec<(&str, Vec<Vec<usize>>, &str, Option<usize>, usize)> = vec![
+        ("freq", vec![vec![at("three")]], "", None, 3),
+        ("group_summary", vec![vec![at("score")], vec![at("grp")]], "", None, 2),
+        ("t_one", vec![vec![at("score")], vec![]], "80", Some(5), 1),
+        ("t_two", vec![vec![at("score")], vec![at("grp")]], "", Some(8), 1),
+        ("t_paired", vec![vec![at("score")], vec![at("before")]], "", Some(7), 1),
+        ("anova", vec![vec![at("score")], vec![at("grp")]], "", Some(3), 1),
+        ("cor", vec![vec![at("score")], vec![at("before")]], "", Some(2), 1),
+        ("chisq", vec![vec![at("grp")], vec![at("three")]], "", Some(2), 1),
+        // three terms: R-squared follows their B, SE and p
+        ("lm", vec![vec![at("score")], vec![at("before"), at("flag")]], "", Some(9), 3 + 4),
+        ("glm", vec![vec![at("flag")], vec![at("score")]], "", None, 2 + 3),
+    ];
+    for (id, picks, typed, p_at, rows) in cases {
+        let a = find(id).unwrap();
+        let b = a.build("d", &cols, &picks, typed).unwrap();
+        let code = b.numbers.clone().unwrap_or_else(|| panic!("{id} has numbers"));
+        let reply = e.call("value", json!({"code": code}), Duration::from_secs(20)).unwrap();
+        assert_eq!(reply["ok"], json!(true), "{id}: {reply:?}");
+        let n = Numbers::from_value(&reply["value"]).unwrap();
+        if let Some(i) = p_at {
+            close(n.values[i], ask(&mut e, b.statistic.as_deref().unwrap())[0]);
+        }
+        let t = build(id, &[Entry { analysis: id, labels: &b.labels, numbers: &n }]).unwrap_or_else(|| panic!("{id} makes a table"));
+        assert_eq!(t.rows.len(), rows, "{id}: {:?}", t.rows);
+        assert!(t.rows.iter().flatten().all(|c| c != "NA"), "{id}: {:?}", t.rows);
+    }
+}

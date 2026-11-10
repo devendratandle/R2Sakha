@@ -23,15 +23,20 @@ pub(crate) enum Req {
     /// One answer about a column.
     SakhaCol { gen: u64, col: usize, slot: usize },
     /// A menu analysis; its output goes to result `rid`.
-    Analysis { rid: usize },
+    Analysis { rid: u64 },
     /// The statistic its plain-words line reads.
-    Statistic { rid: usize },
+    Statistic { rid: u64 },
+    /// The numbers its table reads.
+    Numbers { rid: u64 },
+    /// A Gview graph drawn again; then its whole plot, written to a file.
+    GviewRun { doc: usize, gen: u64 },
+    GviewPlot { doc: usize, gen: u64 },
     /// `data()`: what it prints is the list of R2's datasets.
     DatasetList,
     /// One dataset's size, for that list.
     DatasetSize { name: String },
     /// The whole plot was written to a file; `rid` is the result that drew it.
-    PlotFile { rid: Option<usize> },
+    PlotFile { rid: Option<u64> },
 }
 
 /// What to do once a console command has succeeded.
@@ -146,6 +151,7 @@ impl Gui {
                     Some(Req::Analysis { rid }) => { let rid = *rid; self.result_output(rid, &text, err); }
                     Some(Req::Console { .. }) => self.buffer.push_stream(&text, err),
                     Some(Req::DatasetList) => self.dataset_list_text(&text),
+                    Some(Req::GviewRun { doc, .. }) if err => { let doc = *doc; self.gview_error_text(doc, &text); }
                     _ => {}
                 },
                 Msg::Reply { id, body } => {
@@ -198,6 +204,9 @@ impl Gui {
             Req::SakhaCol { gen, col, slot } => self.sakha_col_reply(gen, col, slot, body),
             Req::Analysis { rid } => self.result_done(rid, body),
             Req::Statistic { rid } => self.result_statistic(rid, body),
+            Req::Numbers { rid } => self.result_numbers(rid, body),
+            Req::GviewRun { doc, gen } => self.gview_reply(doc, gen, body),
+            Req::GviewPlot { doc, gen } => self.gview_plot(doc, gen),
             Req::PlotFile { rid } => self.whole_plot_reply(rid),
             Req::DatasetList => {}
             Req::DatasetSize { name } => self.dataset_size_reply(&name, body),

@@ -120,6 +120,30 @@ impl Frame {
         self.indices.extend_from_slice(&[base, base+1, base+2, base, base+2, base+3]);
     }
 
+    /// Paint the source rows `src_y0..src_y1` of the `src_w`-wide top-left
+    /// part of `h` into the destination rect: a plot partly scrolled out
+    /// of view shows only its visible band.
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_image_rows(&mut self, h: ImageHandle,
+                            x: f32, y: f32, w: f32, ht: f32,
+                            src_w: u32, src_y0: f32, src_y1: f32,
+                            tint: Color) {
+        let inv = 1.0 / ATLAS_SIZE as f32;
+        let u0 = h.atlas_x as f32 * inv;
+        let u1 = (h.atlas_x + src_w.min(h.width)) as f32 * inv;
+        let v0 = (h.atlas_y as f32 + src_y0.max(0.0)) * inv;
+        let v1 = (h.atlas_y as f32 + src_y1.min(h.height as f32)) * inv;
+        let c = color_to_f32(tint);
+        let base = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(&[
+            Vertex { pos: [x,       y     ], uv: [u0, v0], color: c },
+            Vertex { pos: [x + w,   y     ], uv: [u1, v0], color: c },
+            Vertex { pos: [x + w,   y + ht], uv: [u1, v1], color: c },
+            Vertex { pos: [x,       y + ht], uv: [u0, v1], color: c },
+        ]);
+        self.indices.extend_from_slice(&[base, base+1, base+2, base, base+2, base+3]);
+    }
+
     /// Paint a previously-uploaded image into the destination rect.
     /// `tint` is multiplied component-wise with the texture sample —
     /// pass `Color::WHITE` for unmodified colors.

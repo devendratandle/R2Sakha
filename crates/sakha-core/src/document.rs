@@ -52,6 +52,13 @@ pub struct SavedResult {
     pub says: String,
     pub output: String,
     pub svg: Option<String>,
+    /// The variables picked, role by role.
+    pub labels: Vec<String>,
+    /// The R2 code that returned the table numbers, and what it returned.
+    pub numbers_code: Option<String>,
+    pub numbers: Option<crate::tables::Numbers>,
+    /// Left out of the tables by the user.
+    pub untabled: bool,
 }
 
 /// A `.sakha` file.
@@ -78,7 +85,12 @@ impl Document {
     pub fn to_text(&self) -> String {
         let results: Vec<Value> = self.results.iter().map(|r| json!({
             "analysis": r.analysis, "title": r.title, "code": r.code, "statistic": r.statistic,
-            "says": r.says, "output": r.output, "svg": r.svg,
+            "says": r.says, "output": r.output, "svg": r.svg, "labels": r.labels, "numbers_code": r.numbers_code,
+            // a missing value has no JSON number: null
+            "numbers": r.numbers.as_ref().map(|n| json!({
+                "values": n.values.iter().map(|&v| if v.is_finite() { json!(v) } else { Value::Null }).collect::<Vec<_>>(),
+                "names": n.names })),
+            "untabled": r.untabled,
         })).collect();
         let steps: Vec<Value> = self.steps.iter().map(|(k, c, code)| json!({ "key": k, "comment": c, "code": code })).collect();
         sakha_engine::pretty_json(&json!({
@@ -106,7 +118,10 @@ impl Document {
             results: v["results"].as_array().map(|a| a.iter().map(|r| SavedResult {
                 analysis: string(&r["analysis"]), title: string(&r["title"]), code: strings(&r["code"]),
                 statistic: opt_string(&r["statistic"]), says: string(&r["says"]), output: string(&r["output"]),
-                svg: opt_string(&r["svg"]),
+                svg: opt_string(&r["svg"]), labels: strings(&r["labels"]), numbers_code: opt_string(&r["numbers_code"]),
+                numbers: r["numbers"].is_object().then(|| crate::tables::Numbers {
+                    values: crate::profile::reals(&r["numbers"]), names: strings(&r["numbers"]["names"]) }),
+                untabled: r["untabled"].as_bool().unwrap_or(false),
             }).collect()).unwrap_or_default(),
             face: string(&v["view"]["face"]),
             current: v["view"]["current"].as_u64().unwrap_or(0) as usize,
@@ -270,7 +285,11 @@ mod tests {
                         ("run:x".into(), "Histogram".into(), "hist(trial$score)".into())],
             results: vec![SavedResult { analysis: "hist".into(), title: "Histogram of score".into(),
                                         code: vec!["hist(trial$score)".into()], statistic: None, says: "ok \"quoted\"".into(),
-                                        output: "line 1\nline 2\n".into(), svg: Some("<svg/>".into()) }],
+                                        output: "line 1\nline 2\n".into(), svg: Some("<svg/>".into()), ..Default::default() },
+                          SavedResult { analysis: "t_two".into(), title: "t".into(), labels: vec!["score".into(), "grp".into()],
+                                        numbers_code: Some("c(1, 2)".into()), untabled: true,
+                                        numbers: Some(crate::tables::Numbers { values: vec![1.5, -2.0], names: vec!["a".into(), "".into()] }),
+                                        ..Default::default() }],
             face: "results".into(),
             current: 0,
             selected: Some("score".into()),
@@ -283,6 +302,11 @@ mod tests {
         let text = d.to_text();
         assert!(text.contains("\n"), "readable, not one long line");
         assert_eq!(Document::from_text(&text).unwrap(), d);
+        // a missing number is kept as null, and comes back missing
+        let mut gap = d.clone();
+        gap.results[1].numbers.as_mut().unwrap().values[0] = f64::NAN;
+        let back = Document::from_text(&gap.to_text()).unwrap();
+        assert!(back.results[1].numbers.as_ref().unwrap().values[0].is_nan());
     }
 
     #[test]

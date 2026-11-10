@@ -69,7 +69,73 @@ fn palette(theme: &Theme) -> [(Kind, Color); 7] {
 fn strip_h(line_h: f32) -> f32 { line_h + 8.0 }
 
 impl ScriptTab {
-    fn new(ed: Editor) -> ScriptTab {
+    /// One frame's keys, clicks and wheel on the editor painted in `body`.
+    /// `hover`: the mouse is over it (the wheel scrolls it); `keys`: it has
+    /// the keyboard. Commands it cannot do itself (run, copy, save…) are
+    /// pushed onto `actions` as `script.*`.
+    pub(crate) fn input(&mut self, events: &[InputEvent], body: Rect, hover: bool, keys: bool, (cell_w, line_h): (f32, f32),
+                        actions: &mut Vec<&'static str>) {
+        let s = self;
+        let text = s.text_rect(body, cell_w);
+        let rows = (text.h / line_h).floor() as usize;
+        let cols = (text.w / cell_w).floor() as usize;
+        for ev in events {
+            match *ev {
+                InputEvent::Scroll { dy } if hover => {
+                    let step = (dy.abs().ceil() as usize).max(1) * 3;
+                    let max_top = s.ed.buffer().line_count().saturating_sub(1);
+                    s.top = if dy > 0.0 { s.top.saturating_sub(step) } else { (s.top + step).min(max_top) };
+                    continue;
+                }
+                InputEvent::Char(ch) if keys => s.ed.type_char(ch),
+                InputEvent::Key { code, mods, pressed: true } if keys => {
+                    let (sh, c) = (mods.shift, mods.ctrl);
+                    match code {
+                        KeyCode::Enter if c && sh => actions.push("script.run_all"),
+                        KeyCode::Enter if c => actions.push("script.run"),
+                        KeyCode::Enter => s.ed.newline(),
+                        KeyCode::Backspace => s.ed.backspace(),
+                        KeyCode::Delete => s.ed.delete(),
+                        KeyCode::Tab => s.ed.tab(sh),
+                        KeyCode::Escape => s.ed.anchor = None,
+                        KeyCode::Left => s.ed.left(sh, c),
+                        KeyCode::Right => s.ed.right(sh, c),
+                        KeyCode::Up => s.ed.vertical(-1, sh),
+                        KeyCode::Down => s.ed.vertical(1, sh),
+                        KeyCode::PageUp => s.ed.vertical(-(s.page as isize), sh),
+                        KeyCode::PageDown => s.ed.vertical(s.page as isize, sh),
+                        KeyCode::Home => s.ed.home(sh, c),
+                        KeyCode::End => s.ed.end(sh, c),
+                        KeyCode::KeyA if c => s.ed.select_all(),
+                        KeyCode::KeyC if c => actions.push("script.copy"),
+                        KeyCode::KeyX if c => actions.push("script.cut"),
+                        KeyCode::KeyV if c => actions.push("script.paste"),
+                        KeyCode::KeyZ if c => s.ed.undo(),
+                        KeyCode::KeyY if c => s.ed.redo(),
+                        KeyCode::KeyS if c => actions.push("script.save"),
+                        KeyCode::KeyO if c => actions.push("script.open"),
+                        KeyCode::KeyN if c => actions.push("script.new"),
+                        _ => {}
+                    }
+                }
+                InputEvent::MouseDown { button: MouseButton::Left, pos } if inside(body, pos.x, pos.y) => {
+                    let at = s.hit(text, pos.x, pos.y, cell_w, line_h);
+                    s.ed.set_cursor(at, false);
+                    s.dragging = true;
+                }
+                InputEvent::MouseMoved(pos) if s.dragging => {
+                    let at = s.hit(text, pos.x, pos.y, cell_w, line_h);
+                    s.ed.set_cursor(at, true);
+                }
+                InputEvent::MouseUp { button: MouseButton::Left, .. } => { s.dragging = false; continue; }
+                _ => continue,
+            }
+            s.close_armed = false;
+            s.follow_cursor(rows, cols);
+        }
+    }
+
+    pub(crate) fn new(ed: Editor) -> ScriptTab {
         ScriptTab { ed, top: 0, left: 0, dragging: false, page: 20, close_armed: false }
     }
 
@@ -272,63 +338,7 @@ impl Gui {
                 if let Some(v) = self.views.get_mut(&uid) { v.input(ui_events, inside(content, mouse.0, mouse.1), top); }
             }
             Some(Tab::Script(s)) => {
-                let text = s.text_rect(body, cell_w);
-                let rows = (text.h / line_h).floor() as usize;
-                let cols = (text.w / cell_w).floor() as usize;
-                for ev in ui_events {
-                    match *ev {
-                        InputEvent::Scroll { dy } if inside(content, mouse.0, mouse.1) => {
-                            let step = (dy.abs().ceil() as usize).max(1) * 3;
-                            let max_top = s.ed.buffer().line_count().saturating_sub(1);
-                            s.top = if dy > 0.0 { s.top.saturating_sub(step) } else { (s.top + step).min(max_top) };
-                            continue;
-                        }
-                        InputEvent::Char(ch) if top => s.ed.type_char(ch),
-                        InputEvent::Key { code, mods, pressed: true } if top => {
-                            let (sh, c) = (mods.shift, mods.ctrl);
-                            match code {
-                                KeyCode::Enter if c && sh => actions.push("script.run_all"),
-                                KeyCode::Enter if c => actions.push("script.run"),
-                                KeyCode::Enter => s.ed.newline(),
-                                KeyCode::Backspace => s.ed.backspace(),
-                                KeyCode::Delete => s.ed.delete(),
-                                KeyCode::Tab => s.ed.tab(sh),
-                                KeyCode::Escape => s.ed.anchor = None,
-                                KeyCode::Left => s.ed.left(sh, c),
-                                KeyCode::Right => s.ed.right(sh, c),
-                                KeyCode::Up => s.ed.vertical(-1, sh),
-                                KeyCode::Down => s.ed.vertical(1, sh),
-                                KeyCode::PageUp => s.ed.vertical(-(s.page as isize), sh),
-                                KeyCode::PageDown => s.ed.vertical(s.page as isize, sh),
-                                KeyCode::Home => s.ed.home(sh, c),
-                                KeyCode::End => s.ed.end(sh, c),
-                                KeyCode::KeyA if c => s.ed.select_all(),
-                                KeyCode::KeyC if c => actions.push("script.copy"),
-                                KeyCode::KeyX if c => actions.push("script.cut"),
-                                KeyCode::KeyV if c => actions.push("script.paste"),
-                                KeyCode::KeyZ if c => s.ed.undo(),
-                                KeyCode::KeyY if c => s.ed.redo(),
-                                KeyCode::KeyS if c => actions.push("script.save"),
-                                KeyCode::KeyO if c => actions.push("script.open"),
-                                KeyCode::KeyN if c => actions.push("script.new"),
-                                _ => {}
-                            }
-                        }
-                        InputEvent::MouseDown { button: MouseButton::Left, pos } if inside(body, pos.x, pos.y) => {
-                            let at = s.hit(text, pos.x, pos.y, cell_w, line_h);
-                            s.ed.set_cursor(at, false);
-                            s.dragging = true;
-                        }
-                        InputEvent::MouseMoved(pos) if s.dragging => {
-                            let at = s.hit(text, pos.x, pos.y, cell_w, line_h);
-                            s.ed.set_cursor(at, true);
-                        }
-                        InputEvent::MouseUp { button: MouseButton::Left, .. } => { s.dragging = false; continue; }
-                        _ => continue,
-                    }
-                    s.close_armed = false;
-                    s.follow_cursor(rows, cols);
-                }
+                s.input(ui_events, body, inside(content, mouse.0, mouse.1), top, (cell_w, line_h), &mut actions);
             }
             None => {}
         }
@@ -376,7 +386,7 @@ impl Gui {
     }
 }
 
-fn paint_script(p: &mut ScriptTab, body: Rect, caret_on: bool, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme) {
+pub(crate) fn paint_script(p: &mut ScriptTab, body: Rect, caret_on: bool, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme) {
     let (cell_w, line_h) = renderer.cell_metrics(theme.fs());
     let size = theme.fs();
     let bg = theme.window_background;

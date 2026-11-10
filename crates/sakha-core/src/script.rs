@@ -29,6 +29,15 @@ impl SessionScript {
         true
     }
 
+    /// Record a step, or change the one already under `key`: a graph edited
+    /// in Gview keeps one step, its latest code.
+    pub fn set_step(&mut self, key: &str, comment: &str, code: &[String]) {
+        match self.steps.iter_mut().find(|(k, _, _)| k == key) {
+            Some(s) => { s.1 = comment.to_string(); s.2 = code.join("\n"); }
+            None => self.steps.push((key.to_string(), comment.to_string(), code.join("\n"))),
+        }
+    }
+
     pub fn steps(&self) -> usize { self.steps.len() }
 
     /// The parts a `.sakha` file stores: the header, then (key, comment, code).

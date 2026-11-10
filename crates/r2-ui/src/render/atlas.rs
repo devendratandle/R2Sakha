@@ -185,6 +185,12 @@ pub(crate) struct Atlas {
     pen_x:   u32,
     pen_y:   u32,
     shelf_h: u32,
+    /// Images pack in their own shelves from the bottom up, side by side,
+    /// so glyphs (top down) and images never interleave. `img_top` is the
+    /// top of the current image shelf, `img_x` the next free column in it.
+    img_top: u32,
+    img_x:   u32,
+    img_h:   u32,
 }
 
 impl Atlas {
@@ -234,6 +240,9 @@ impl Atlas {
             pen_x: 1 + ATLAS_PAD,  // leave the (0,0) pixel for solid fills
             pen_y: 0,
             shelf_h: 0,
+            img_top: ATLAS_SIZE,
+            img_x: 0,
+            img_h: 0,
         }
     }
 
@@ -262,7 +271,7 @@ impl Atlas {
             self.shelf_h = 0;
         }
         // Out of room: punt (return zero-sized glyph; caller paints nothing).
-        if self.pen_y + h > ATLAS_SIZE {
+        if self.pen_y + h + ATLAS_PAD > self.img_top {
             let g = GlyphInfo {
                 atlas_x: 0, atlas_y: 0, width: 0, height: 0,
                 xmin: metrics.xmin, ymin: metrics.ymin,
@@ -328,17 +337,20 @@ impl Atlas {
         if w == 0 || h == 0 || rgba.len() != (w as usize) * (h as usize) * 4 {
             return None;
         }
-        // Always start a fresh shelf for image-sized allocations so we
-        // don't fragment glyph shelves with one tall tile.
-        if self.shelf_h > 0 {
-            self.pen_x  = ATLAS_PAD;
-            self.pen_y += self.shelf_h + ATLAS_PAD;
-            self.shelf_h = 0;
-        }
-        if self.pen_x + w + ATLAS_PAD > ATLAS_SIZE { return None; }
-        if self.pen_y + h > ATLAS_SIZE { return None; }
-        let ax = self.pen_x;
-        let ay = self.pen_y;
+        if w + ATLAS_PAD > ATLAS_SIZE { return None; }
+        // beside the last image when it fits in that shelf, else a new
+        // shelf above it; never into the glyph rows
+        let glyph_floor = self.pen_y + self.shelf_h + ATLAS_PAD;
+        let (ax, ay) = if self.img_h >= h && self.img_x + w <= ATLAS_SIZE {
+            (self.img_x, self.img_top)
+        } else {
+            let top = self.img_top.checked_sub(h + ATLAS_PAD)?;
+            if top < glyph_floor { return None; }
+            self.img_top = top;
+            self.img_h = h;
+            self.img_x = 0;
+            (0, top)
+        };
         queue.write_texture(
             wgpu::ImageCopyTexture {
                 texture: &self.texture,
@@ -354,9 +366,7 @@ impl Atlas {
             },
             wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         );
-        self.pen_x  = ATLAS_PAD;
-        self.pen_y += h + ATLAS_PAD;
-        self.shelf_h = 0;
+        self.img_x = ax + w + ATLAS_PAD;
         Some((ax, ay, w, h))
     }
 }

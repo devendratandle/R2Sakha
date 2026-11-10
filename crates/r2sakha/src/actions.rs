@@ -101,6 +101,9 @@ impl Gui {
             a if a.starts_with("project.") => self.project_action(a),
             a if a.starts_with("script.") => self.script_action(a, ctx),
             a if a.starts_with("sakha.") => self.sakha_action(a),
+            a if a.starts_with("gview.") => self.sakha_action(a),
+            a if a.starts_with("result.") => self.result_action(a, ctx),
+            a if a.starts_with("tables.") => self.tables_action(a, ctx),
             "help.about" => {
                 self.buffer.push_banner(&format!(
                     "Ardon Studio {}: one program with two faces on one Ardon-R2 session. AGPL-3.0.",
@@ -125,16 +128,26 @@ impl Gui {
             self.buffer.push_output("No plot to save.");
             return;
         };
+        let px = self.plot_pixels(theme);
+        let name = if png_only { "plot.png" } else { "plot.svg" };
+        if let Some(msg) = self.save_svg(&svg, name, px, png_only) {
+            if msg.starts_with("Save failed") { self.buffer.push_error(&msg) } else { self.buffer.push_output(&msg) }
+        }
+    }
+
+    /// Ask where, then write `svg` as SVG or as a `px`-sized PNG, by the
+    /// name's extension. Says what happened; nothing when cancelled.
+    pub(crate) fn save_svg(&mut self, svg: &str, name: &str, px: (u32, u32), png_only: bool) -> Option<String> {
         let dialog = rfd::FileDialog::new().set_directory(&self.session.cwd);
         let dialog = if png_only {
-            dialog.set_title("Save plot as PNG").set_file_name("plot.png").add_filter("PNG image", &["png"])
+            dialog.set_title("Save plot as PNG").set_file_name(name).add_filter("PNG image", &["png"])
         } else {
-            dialog.set_title("Save plot").set_file_name("plot.svg")
+            dialog.set_title("Save plot").set_file_name(name)
                 .add_filter("SVG vector", &["svg"]).add_filter("PNG image", &["png"])
         };
-        let Some(path) = dialog.save_file() else { return };
+        let path = dialog.save_file()?;
         let png = png_only || path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
-        let (w, h) = self.plot_pixels(theme);
+        let (w, h) = px;
         let result = if png {
             r2_ui::graph::rasterize_plot(svg.as_bytes(), w, h)
                 .ok_or_else(|| "could not draw the plot".to_string())
@@ -143,11 +156,11 @@ impl Gui {
         } else {
             std::fs::write(&path, svg).map_err(|e| e.to_string())
         };
-        match result {
-            Ok(()) if png => self.buffer.push_output(&format!("Saved plot to {} ({w}×{h})", path.display())),
-            Ok(()) => self.buffer.push_output(&format!("Saved plot to {}", path.display())),
-            Err(e) => self.buffer.push_error(&format!("Save failed: {e}")),
-        }
+        Some(match result {
+            Ok(()) if png => format!("Saved plot to {} ({w}×{h})", path.display()),
+            Ok(()) => format!("Saved plot to {}", path.display()),
+            Err(e) => format!("Save failed: {e}"),
+        })
     }
 
     fn copy_plot_svg(&mut self, ctx: &mut FrameCtx) {

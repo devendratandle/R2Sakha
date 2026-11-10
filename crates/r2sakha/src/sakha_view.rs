@@ -21,12 +21,16 @@
 
 use std::collections::HashMap;
 
-use r2_ui::{Color, ContextItem, ContextMenu, Frame, GraphPanel, InputEvent, KeyCode, MouseButton, Rect, Renderer, Theme};
+use r2_ui::{Color, ContextItem, ContextMenu, Frame, InputEvent, KeyCode, MouseButton, Rect, Renderer, Theme};
 use sakha_core::analysis::{self, Analysis, Built};
 use sakha_core::profile::{self, code_as_category, code_for, dataset_line, fill, fmt, fmt_short, queries, ColumnProfile, Kind};
+use sakha_core::gview::quote;
+use sakha_core::tables::Numbers;
 use sakha_core::script::{default_script_name, load_line_from_history, SessionScript};
 use sakha_engine::{json, Value};
 
+use crate::report::Report;
+use crate::tables_view::TablesView;
 use crate::sakha_dialog::AnalysisDialog;
 use crate::session::{After, Req};
 use crate::ui::{button, button_left_of, inside, mix, tabs, text, today, wrap};
@@ -45,12 +49,14 @@ const IN_FLIGHT: usize = 2;
 const EXT: &str = "r2";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Face { Overview, Data, Results }
+pub(crate) enum Face { Overview, Data, Results, Tables }
 
 struct Job { answers: Vec<Option<Value>>, remaining: usize }
 
-/// One analysis the user ran: a card on the Results tab.
+/// One analysis the user ran: a block in the Results report.
 pub(crate) struct SakhaResult {
+    /// Stable while results move or go: replies from R2 find theirs by it.
+    pub(crate) uid: u64,
     pub(crate) title: String,
     pub(crate) a: &'static Analysis,
     pub(crate) code: Vec<String>,
@@ -59,7 +65,32 @@ pub(crate) struct SakhaResult {
     pub(crate) output: String,
     /// The plot it drew.
     pub(crate) svg: Option<String>,
+    /// Bumped with each new plot, so the report re-draws it once.
+    pub(crate) gen: u64,
+    /// The plot's height over its width.
+    pub(crate) aspect: f32,
     pub(crate) running: bool,
+    /// The variables picked, role by role: a table row's name.
+    pub(crate) labels: Vec<String>,
+    /// The R2 code that returns its table numbers, and what R2 returned.
+    pub(crate) numbers_code: Option<String>,
+    pub(crate) numbers: Option<Numbers>,
+    /// The user left it out of the tables.
+    pub(crate) untabled: bool,
+}
+
+impl SakhaResult {
+    pub(crate) fn new(uid: u64, a: &'static Analysis, b: Built) -> Self {
+        SakhaResult { uid, title: b.title, a, code: b.code, statistic: b.statistic, says: "R2 is working…".into(), output: String::new(),
+                      svg: None, gen: 0, aspect: 2.0 / 3.0, running: true, labels: b.labels, numbers_code: b.numbers, numbers: None,
+                      untabled: false }
+    }
+
+    pub(crate) fn set_svg(&mut self, svg: Option<String>) {
+        self.aspect = svg.as_deref().and_then(crate::report::svg_aspect).unwrap_or(2.0 / 3.0);
+        self.svg = svg;
+        self.gen += 1;
+    }
 }
 
 /// Click targets from the last paint.
@@ -77,8 +108,6 @@ struct Hits {
     script_toggle: Option<Rect>,
     script_area: Option<Rect>,
     dataset: Option<Rect>,
-    prev: Option<Rect>,
-    next: Option<Rect>,
     open_csv: Option<Rect>,
     frames: Vec<(Rect, String)>,
     save: Option<Rect>,
@@ -117,11 +146,10 @@ pub(crate) struct Sakha {
     script_scroll: usize,
     pub(crate) status: String,
     pub(crate) results: Vec<SakhaResult>,
-    pub(crate) current: usize,
-    pub(crate) result_scroll: usize,
-    panel: GraphPanel,
-    /// Which result the panel holds.
-    pub(crate) panel_for: Option<usize>,
+    /// How the results are laid out and scrolled.
+    pub(crate) report: Report,
+    /// The results gathered into publishable tables.
+    pub(crate) tables: TablesView,
     /// The user ran something; re-read the columns when next in front.
     pub(crate) stale: bool,
     pub(crate) dialog: Option<AnalysisDialog>,
@@ -136,7 +164,7 @@ impl Default for Sakha {
         Sakha { df: None, cols: vec![], selected: None, reselect: None, face: Face::Overview, scroll: 0, load: None, document: None,
                 dirty: false, data_changed: false, pending_load: None, gen: 0, jobs: HashMap::new(),
                 script: SessionScript::default(), show_script: false, script_scroll: 0, status: String::new(), results: vec![],
-                current: 0, result_scroll: 0, panel: GraphPanel::new(), panel_for: None, stale: false, dialog: None,
+                report: Report::default(), tables: TablesView::default(), stale: false, dialog: None,
                 data_uid: None, choosing: false, hits: Hits::default() }
     }
 }
@@ -152,10 +180,27 @@ impl Sakha {
         self.gen += 1;
     }
 
+    /// The result at the top of the report.
+    fn focused(&self) -> Option<&SakhaResult> {
+        self.report.enlarged.or(self.report.focus).and_then(|u| self.result(u)).or_else(|| self.results.last())
+    }
+
+    pub(crate) fn result(&self, uid: u64) -> Option<&SakhaResult> { self.results.iter().find(|r| r.uid == uid) }
+
+    pub(crate) fn result_mut(&mut self, uid: u64) -> Option<&mut SakhaResult> { self.results.iter_mut().find(|r| r.uid == uid) }
+
+    /// A new result, at the end of the report.
+    pub(crate) fn push_result(&mut self, a: &'static Analysis, built: Built) -> u64 {
+        let uid = self.report.new_uid();
+        self.results.push(SakhaResult::new(uid, a, built));
+        uid
+    }
+
     fn code(&self) -> Vec<String> {
         let Some(df) = &self.df else { return vec![] };
         match (self.face, self.selected) {
-            (Face::Results, _) => self.results.get(self.current).map(|r| r.code.clone()).unwrap_or_default(),
+            (Face::Results, _) => self.focused().map(|r| r.code.clone()).unwrap_or_default(),
+            (Face::Tables, _) => vec![],
             (_, Some(i)) => code_for(df, &self.cols[i]),
             _ => vec![format!("str({df})"), format!("summary({df})")],
         }
@@ -163,8 +208,9 @@ impl Sakha {
 
     fn says(&self) -> String {
         match (self.face, self.selected) {
-            (Face::Results, _) => self.results.get(self.current).map(|r| r.says.clone())
+            (Face::Results, _) => self.focused().map(|r| r.says.clone())
                 .unwrap_or_else(|| "Choose an analysis from the menus above: Summarize, Compare, Relate or Plot.".into()),
+            (Face::Tables, _) => "The same test on several variables shares one table, in APA style. Copy a table into Word, or save it as CSV or HTML.".into(),
             (_, Some(i)) => self.cols[i].says(),
             _ => "Click a card or a variable for its detail, or choose an analysis from the menus above. Everything you do is recorded in the session script.".into(),
         }
@@ -189,8 +235,7 @@ impl Gui {
         s.load = load;
         // an analysis is of one dataset
         s.results.clear();
-        s.current = 0;
-        s.panel_for = None;
+        s.report.reset();
         s.document = None;
         s.dirty = false;
         s.data_changed = false;
@@ -298,48 +343,53 @@ impl Gui {
         let s = &mut self.sakha;
         s.script.record(&format!("run:{code}"), &built.title, &built.code);
         s.dirty = true;
-        s.results.push(SakhaResult { title: built.title, a, code: built.code, statistic: built.statistic,
-                                     says: "R2 is working…".into(), output: String::new(), svg: None, running: true });
-        s.current = s.results.len() - 1;
-        s.result_scroll = 0;
+        let rid = s.push_result(a, built);
+        s.report.jump_to(rid);
         s.face = Face::Results;
         s.selected = None;
-        let rid = s.current;
         self.session.send("eval", json!({ "code": code }), Req::Analysis { rid });
     }
 
-    pub(crate) fn result_output(&mut self, rid: usize, chunk: &str, _err: bool) {
-        if let Some(r) = self.sakha.results.get_mut(rid) { r.output.push_str(chunk); }
+    pub(crate) fn result_output(&mut self, rid: u64, chunk: &str, _err: bool) {
+        if let Some(r) = self.sakha.result_mut(rid) { r.output.push_str(chunk); }
     }
 
-    pub(crate) fn result_done(&mut self, rid: usize, body: &Value) {
+    pub(crate) fn result_done(&mut self, rid: u64, body: &Value) {
         let plotted = body["plot"].as_str().map(str::to_string);
         if let Some(svg) = &plotted { self.add_plot(svg.clone()); }
         // the same plot again is not sent twice: it is the current one
-        let draws = self.sakha.results.get(rid).is_some_and(|r| r.a.menu == "Plot");
+        let draws = self.sakha.result(rid).is_some_and(|r| r.a.menu == "Plot");
         let svg = plotted.or_else(|| if draws { self.plots.current().map(str::to_string) } else { None });
         let failed = body["error"] == Value::Bool(true);
         self.sakha.dirty = true;
-        let Some(r) = self.sakha.results.get_mut(rid) else { return };
+        let Some(r) = self.sakha.result_mut(rid) else { return };
         r.running = false;
-        r.svg = if failed { None } else { svg };
+        r.set_svg(if failed { None } else { svg });
         r.says = if failed { "R2 could not run this; its message is below.".into() }
                  else if body["interrupted"] == Value::Bool(true) { "Stopped.".into() }
                  else { r.a.note().map(str::to_string).unwrap_or_else(|| format!("{}.", r.title)) };
         let ask = if failed { None } else { r.statistic.clone() };
-        if self.sakha.current == rid { self.sakha.panel_for = None; }
+        let numbers = if failed { None } else { r.numbers_code.clone() };
+        r.numbers = None;
         if draws && !failed { self.ask_whole_plot(Some(rid)); }
         if let Some(code) = ask { self.session.value(&code, Req::Statistic { rid }); }
+        if let Some(code) = numbers { self.session.value(&code, Req::Numbers { rid }); }
+    }
+
+    /// The numbers its table reads; none if R2 could not compute them.
+    pub(crate) fn result_numbers(&mut self, rid: u64, body: &Value) {
+        let Some(r) = self.sakha.result_mut(rid) else { return };
+        r.numbers = if body["ok"] == Value::Bool(true) { Numbers::from_value(&body["value"]) } else { None };
+        self.sakha.dirty = true;
     }
 
     /// The whole plot arrived: a result that drew it shows it.
-    pub(crate) fn result_plot(&mut self, rid: usize, svg: String) {
-        if let Some(r) = self.sakha.results.get_mut(rid) { r.svg = Some(svg); }
-        if self.sakha.current == rid { self.sakha.panel_for = None; }
+    pub(crate) fn result_plot(&mut self, rid: u64, svg: String) {
+        if let Some(r) = self.sakha.result_mut(rid) { r.set_svg(Some(svg)); }
     }
 
-    pub(crate) fn result_statistic(&mut self, rid: usize, body: &Value) {
-        let Some(r) = self.sakha.results.get_mut(rid) else { return };
+    pub(crate) fn result_statistic(&mut self, rid: u64, body: &Value) {
+        let Some(r) = self.sakha.result_mut(rid) else { return };
         let stat = profile::reals(&body["value"]).first().copied().unwrap_or(f64::NAN);
         if let Some(line) = r.a.says(stat) { r.says = line; }
         self.sakha.dirty = true;
@@ -393,11 +443,27 @@ impl Gui {
             "sakha.overview" => { self.sakha.face = Face::Overview; self.sakha.selected = None; }
             "sakha.data" => self.sakha.face = Face::Data,
             "sakha.results" => self.sakha.face = Face::Results,
+            "sakha.tables" => self.sakha.face = Face::Tables,
             a => {
                 if let Some(id) = a.strip_prefix("sakha.run.") { self.sakha_menu(id); }
                 if let Some(df) = a.strip_prefix("sakha.df:") { self.open_sakha(df, None); }
+                #[cfg(feature = "drive")]
+                if let Some(spec) = a.strip_prefix("sakha.test:") { self.drive_run(spec); }
+                if let Some(name) = a.strip_prefix("gview.var:") { self.gview_variable(name); }
             }
         }
+    }
+
+    /// A variable's graph in Gview: a histogram of a number, bars of a category.
+    fn gview_variable(&mut self, name: &str) {
+        let (Some(df), Some(c)) = (self.sakha.df.clone(), self.sakha.cols.iter().find(|c| c.name == name)) else { return };
+        let r = profile::col_ref(&df, &c.name);
+        let (title, code) = match c.kind {
+            Kind::Number => (format!("Histogram of {name}"),
+                             format!("hist({r}, main = {}, xlab = {}, ylab = \"Count\")", quote(name), quote(name))),
+            _ => (format!("Bars of {name}"), format!("barplot(table({r}), main = {}, xlab = {}, ylab = \"Count\")", quote(name), quote(name))),
+        };
+        self.open_in_gview(&title, &[code]);
     }
 
     fn export_session(&mut self) {
@@ -416,6 +482,8 @@ impl Gui {
     pub(crate) fn sakha_input(&mut self, events: &[InputEvent]) {
         if self.sakha.stale && self.sakha.df.is_some() { self.ask_columns(); }
         self.sakha_compute();
+        if self.sakha.face == Face::Results { self.report_input(events); }
+        if self.sakha.face == Face::Tables { self.tables_input(events); }
         let mouse = self.mouse;
         let busy = self.session.busy();
         let mut apply: Option<String> = None;
@@ -441,7 +509,7 @@ impl Gui {
                         else if hit(&s.hits.rerun) { rerun = true; }
                         else if hit(&s.hits.dataset) { open_dataset = s.hits.dataset; }
                         else if let Some(k) = s.hits.faces.iter().position(|r| inside(*r, x, y)) {
-                            s.face = [Face::Overview, Face::Data, Face::Results][k];
+                            s.face = [Face::Overview, Face::Data, Face::Results, Face::Tables][k];
                         } else if let Some(&(_, i)) = s.hits.cards.iter().chain(s.hits.list.iter()).find(|(r, _)| inside(*r, x, y)) {
                             s.selected = Some(i);
                             s.face = Face::Overview;
@@ -455,8 +523,6 @@ impl Gui {
                         else if hit(&s.hits.script_toggle) { s.show_script = !s.show_script; }
                         else if hit(&s.hits.export) { export = true; }
                         else if hit(&s.hits.run) { to_studio = Some(s.code()); }
-                        else if hit(&s.hits.prev) { s.current = s.current.saturating_sub(1); s.result_scroll = 0; }
-                        else if hit(&s.hits.next) { s.current = (s.current + 1).min(s.results.len().saturating_sub(1)); s.result_scroll = 0; }
                         else if hit(&s.hits.density) { density = s.selected; }
                         else if hit(&s.hits.as_category) {
                             if let (Some(c), Some(df)) = (s.selected.map(|i| &s.cols[i]), &s.df) {
@@ -471,9 +537,6 @@ impl Gui {
                     InputEvent::Key { code: KeyCode::Escape, pressed: true, .. } if !busy => { s.selected = None; s.choosing = false; }
                     InputEvent::Scroll { dy } if s.hits.script_area.is_some_and(|r| inside(r, mouse.0, mouse.1)) => {
                         s.script_scroll = if dy > 0.0 { s.script_scroll.saturating_sub(3) } else { s.script_scroll + 3 };
-                    }
-                    InputEvent::Scroll { dy } if s.face == Face::Results && s.hits.cards_area.is_some_and(|r| inside(r, mouse.0, mouse.1)) => {
-                        s.result_scroll = if dy > 0.0 { s.result_scroll.saturating_sub(3) } else { s.result_scroll + 3 };
                     }
                     InputEvent::Scroll { dy } if s.face == Face::Overview && s.hits.cards_area.is_some_and(|r| inside(r, mouse.0, mouse.1)) => {
                         s.scroll = if dy > 0.0 { s.scroll.saturating_sub(1) } else { s.scroll + 1 };
@@ -594,8 +657,10 @@ impl Gui {
 
         // ── the tabs, and what they show
         let strip = lh + 8.0;
-        let labels = vec!["Overview".to_string(), "Data".to_string(), format!("Results ({})", self.sakha.results.len())];
-        let active = match self.sakha.face { Face::Overview => 0, Face::Data => 1, Face::Results => 2 };
+        let tables = self.sakha_tables().len();
+        let labels = vec!["Overview".to_string(), "Data".to_string(), format!("Results ({})", self.sakha.results.len()),
+                          format!("Tables ({tables})")];
+        let active = match self.sakha.face { Face::Overview => 0, Face::Data => 1, Face::Results => 2, Face::Tables => 3 };
         self.sakha.hits.faces = tabs(frame, renderer, theme, area.x, area.y, strip, area.x + area.w, &labels, active);
         let main = Rect { x: area.x, y: area.y + strip + 4.0, w: area.w, h: (area.h - strip - 4.0).max(0.0) };
         self.sakha.hits.cards_area = Some(main);
@@ -610,7 +675,8 @@ impl Gui {
                     self.fetch_view_pages(uid);
                 }
             }
-            Face::Results => self.paint_results(main, strip, area, frame, renderer, theme),
+            Face::Results => self.paint_results(main, frame, renderer, theme),
+            Face::Tables => self.paint_tables(main, frame, renderer, theme),
         }
     }
 
@@ -724,6 +790,12 @@ impl Gui {
             let title = if flagged { col.name.clone() } else { format!("{}  {}", col.name, col.kind.label()) };
             let title: String = title.chars().take(if flagged { CARD_W - 11 } else { CARD_W - 1 }).collect();
             text(frame, renderer, x + 6.0, y + 2.0 + lh * 0.8, &title, size, theme.console_banner, cw, x + card_w - 4.0);
+            // the card's graph, to edit and save, in its own window
+            if col.kind != Kind::Text {
+                let g = Rect { x: x + card_w - 8.0 * cw - 4.0, y: y + card_h - lh - 6.0, w: 8.0 * cw, h: lh + 2.0 };
+                button(frame, renderer, theme, g, "Gview", false);
+                s.hits.links.push((g, format!("gview.var:{}", col.name)));
+            }
             let chart = Rect { x: x + 8.0, y: y + lh + 10.0, w: card_w - 16.0, h: 2.6 * lh };
             let mut line = String::new();
             match (&col.num, col.kind) {
@@ -810,6 +882,9 @@ impl Gui {
                 let r = Rect { x: sx, y: chart.y + lh * 12.4, w: 30.0 * cw, h: lh + 6.0 };
                 button(frame, renderer, theme, r, "Density curve with 95% CI", false);
                 s.hits.density = Some(r);
+                let g = Rect { x: sx, y: chart.y + lh * 16.0, w: 30.0 * cw, h: lh + 6.0 };
+                button(frame, renderer, theme, g, "Edit the histogram in Gview", false);
+                s.hits.links.push((g, format!("gview.var:{}", col.name)));
                 if col.looks_categorical {
                     let r = Rect { x: sx, y: chart.y + lh * 10.4, w: 22.0 * cw, h: lh + 6.0 };
                     button(frame, renderer, theme, r, "Treat as category", false);
@@ -836,62 +911,6 @@ impl Gui {
             let y = chart.y + lh * (0.8 + k as f32);
             text(frame, renderer, sx, y, label, size, dim, cw, sx + 12.0 * cw);
             text(frame, renderer, sx + 12.0 * cw, y, val, size, fg, cw, area.x + area.w);
-        }
-    }
-
-    /// The current result card: its title, R2's own output, and its plot.
-    #[allow(clippy::too_many_arguments)]
-    fn paint_results(&mut self, area: Rect, strip: f32, tabs_area: Rect, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme) {
-        let (cw, lh) = renderer.cell_metrics(theme.fs());
-        let (bg, fg, size) = (theme.window_background, theme.console_output, theme.fs());
-        let dim = mix(fg, bg, 0.45);
-        let n = self.sakha.results.len();
-        if n == 0 {
-            text(frame, renderer, area.x, area.y + lh * 0.8, "No results yet. Choose an analysis from the Summarize, Compare, Relate or Plot menus.", size, dim, cw, area.x + area.w);
-            return;
-        }
-        // step through the results, at the tab strip's right end
-        let (by, bh) = (tabs_area.y + 2.0, strip - 4.0);
-        let mut right = tabs_area.x + tabs_area.w;
-        let r = button_left_of(frame, renderer, theme, right, by, bh, "›", false);
-        self.sakha.hits.next = Some(r); right = r.x - 2.0;
-        let label = format!("{}/{n}", self.sakha.current + 1);
-        let w = (label.chars().count() + 1) as f32 * cw;
-        text(frame, renderer, right - w, by + (bh - lh) / 2.0 + lh * 0.8, &label, size, dim, cw, right);
-        right -= w + 2.0;
-        let r = button_left_of(frame, renderer, theme, right, by, bh, "‹", false);
-        self.sakha.hits.prev = Some(r);
-
-        let current = self.sakha.current;
-        // the panel holds one result's plot; re-rasterise only on a change
-        if self.sakha.panel_for != Some(current) {
-            self.sakha.panel_for = Some(current);
-            match self.sakha.results[current].svg.clone() {
-                Some(svg) => self.sakha.panel.set_svg(svg.into_bytes()),
-                None => self.sakha.panel.clear(),
-            }
-        }
-        let s = &mut self.sakha;
-        let res = &s.results[current];
-        text(frame, renderer, area.x, area.y + lh * 0.8, &res.title, size, theme.console_banner, cw, area.x + area.w);
-        let top = area.y + lh * 1.4;
-        let h = (area.h - lh * 1.4).max(0.0);
-        let lines: Vec<&str> = res.output.lines().collect();
-        let has_plot = res.svg.is_some();
-        // a plot with no output takes the whole card; with output, half of it
-        let text_w = match (has_plot, lines.is_empty()) { (true, true) => 0.0, (true, false) => area.w * 0.5, _ => area.w };
-        if text_w > 0.0 {
-            let fit = (h / lh).floor().max(1.0) as usize;
-            s.result_scroll = s.result_scroll.min(lines.len().saturating_sub(fit));
-            for (k, l) in lines.iter().skip(s.result_scroll).take(fit).enumerate() {
-                let color = if l.starts_with("Error") { theme.console_error } else { fg };
-                text(frame, renderer, area.x, top + lh * (0.8 + k as f32), l, size, color, cw, area.x + text_w - 6.0);
-            }
-        }
-        if has_plot {
-            let p = Rect { x: area.x + text_w, y: top, w: area.w - text_w, h };
-            frame.paint_rect(p.x, p.y, p.w, p.h, Color::WHITE);
-            s.panel.paint(frame, renderer, Rect { x: p.x + 8.0, y: p.y + 8.0, w: (p.w - 16.0).max(0.0), h: (p.h - 16.0).max(0.0) }, theme);
         }
     }
 }

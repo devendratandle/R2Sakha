@@ -106,6 +106,7 @@ pub(crate) fn sakha_menu() -> MenuBarState {
         .item("All variables",  "", "sakha.overview")
         .item("Data",           "", "sakha.data")
         .item("Results",        "", "sakha.results")
+        .item("Tables",         "", "sakha.tables")
         .item("Session script", "", "sakha.script");
     mb.top("Help")
         .item("About Ardon Studio",  "", "help.about");

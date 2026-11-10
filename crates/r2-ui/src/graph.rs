@@ -51,6 +51,9 @@ pub struct GraphPanel {
     /// When true, the next paint will re-rasterise even if size
     /// didn't change (set by `set_svg`).
     dirty: bool,
+    /// The slot's size: the largest raster this panel draws 1:1.
+    slot_w: u32,
+    slot_h: u32,
 }
 
 impl Default for GraphPanel {
@@ -58,15 +61,23 @@ impl Default for GraphPanel {
 }
 
 impl GraphPanel {
-    pub fn new() -> Self {
+    pub fn new() -> Self { Self::with_slot(SLOT_W, SLOT_H) }
+
+    /// A panel whose atlas slot is `w × h`: smaller panels let several
+    /// plots be on screen at once.
+    pub fn with_slot(w: u32, h: u32) -> Self {
         Self {
             svg: None,
             svg_geometry: None,
             texts: Vec::new(),
             svg_w: 600.0, svg_h: 400.0,
             slot: None, last_size: None, dirty: false,
+            slot_w: w, slot_h: h,
         }
     }
+
+    /// The SVG's own size, for laying the plot out at its aspect.
+    pub fn svg_size(&self) -> (f32, f32) { (self.svg_w, self.svg_h) }
 
     /// Install an SVG payload. The next paint re-rasterises.
     /// Text elements are extracted up-front so resvg only sees the
@@ -109,6 +120,21 @@ impl GraphPanel {
         rect: Rect,
         theme: &Theme,
     ) {
+        self.paint_clipped(frame, renderer, rect, (f32::MIN, f32::MAX), theme);
+    }
+
+    /// Paint only the part of the panel between `clip.0` and `clip.1`
+    /// vertically, for a plot in a scrolling page.
+    pub fn paint_clipped(
+        &mut self,
+        frame: &mut Frame,
+        renderer: &mut Renderer,
+        rect: Rect,
+        clip: (f32, f32),
+        theme: &Theme,
+    ) {
+        let (top, bottom) = (rect.y.max(clip.0), (rect.y + rect.h).min(clip.1));
+        if bottom <= top { return; }
         // Pixel-perfect rendering with NO atlas fragmentation:
         //   1. Allocate ONE big slot (SLOT_W × SLOT_H) on the first
         //      paint. Reuse it forever via sub-region writes.
@@ -126,12 +152,12 @@ impl GraphPanel {
         // so rasterise at exactly that size — a true 1:1 texel→pixel
         // mapping with no resample blur. (No extra dpi multiplier: that
         // would supersample then downscale, softening edges.)
-        let target_w = (rect.w.round() as u32).max(64).min(SLOT_W);
-        let target_h = (rect.h.round() as u32).max(64).min(SLOT_H);
+        let target_w = (rect.w.round() as u32).max(64).min(self.slot_w);
+        let target_h = (rect.h.round() as u32).max(64).min(self.slot_h);
 
         if self.slot.is_none() {
-            let placeholder = vec![0u8; (SLOT_W * SLOT_H * 4) as usize];
-            self.slot = renderer.upload_image(SLOT_W, SLOT_H, &placeholder);
+            let placeholder = vec![0u8; (self.slot_w * self.slot_h * 4) as usize];
+            self.slot = renderer.upload_image(self.slot_w, self.slot_h, &placeholder);
             // First allocation always triggers a fresh raster.
             self.dirty = true;
         }
@@ -161,15 +187,21 @@ impl GraphPanel {
 
         // Always paint a body background so empty / failed states still
         // look intentional.
-        frame.paint_rect(rect.x, rect.y, rect.w, rect.h, theme.window_background);
+        frame.paint_rect(rect.x, top, rect.w, bottom - top, theme.window_background);
 
         if let (Some(slot), Some((sw, sh))) = (self.slot, self.last_size) {
+            if top > rect.y || bottom < rect.y + rect.h {
+                let k = sh as f32 / rect.h;
+                frame.paint_image_rows(slot, rect.x, top, rect.w, bottom - top, sw,
+                                       (top - rect.y) * k, (bottom - rect.y) * k, Color::WHITE);
+            } else {
             // Draw exactly the (sw × sh) sub-rectangle of the slot
             // at the panel rect. Because we rasterised at the
             // panel's display pixel size, this is a 1:1 pixel-perfect
             // mapping when DPI=1 (or constant-multiplier when scaled).
             frame.paint_image_sub(slot, rect.x, rect.y, rect.w, rect.h,
                                   sw, sh, Color::WHITE);
+            }
 
             // ── Text overlay via fontdue. Each <text> element from
             //    the SVG is painted with integer-pixel-snapped glyphs
@@ -186,6 +218,8 @@ impl GraphPanel {
                     let panel_x = rect.x + t.x * mx;
                     let panel_y = rect.y + t.y * my;
                     let panel_font = (t.font_size * font_scale).max(6.0);
+                    // whole labels only: a cut glyph reads worse than none
+                    if panel_y - panel_font < top || panel_y + panel_font * 0.3 > bottom { continue; }
                     let color = parse_css_color(&t.color);
                     let anchor = match t.anchor {
                         SvgTextAnchor::Start  => TextAnchorKind::Start,
@@ -205,6 +239,7 @@ impl GraphPanel {
             let tw = msg.chars().count() as f32 * cell_w;
             let cx = rect.x + (rect.w - tw) * 0.5;
             let cy = rect.y + rect.h * 0.5 + line_h * 0.3;
+            if cy - line_h < top || cy > bottom { return; }
             frame.paint_text(renderer, cx, cy, msg, theme.font_size,
                              Color::rgba(120, 120, 130, 200));
         }

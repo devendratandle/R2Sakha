@@ -70,6 +70,8 @@ impl Gui {
     }
 
     pub(crate) fn set_mode(&mut self, sakha: bool) {
+        // the enlarged plot borrows the Plots pane's panel
+        if !sakha { self.close_enlarged(); }
         self.sakha_mode = sakha;
         self.divider_drag = None;
         self.divider_hover = None;

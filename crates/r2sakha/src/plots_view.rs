@@ -17,7 +17,7 @@ pub(crate) struct PlotsPane {
     pub(crate) history: Vec<String>,
     /// Which plot shows.
     pub(crate) at: usize,
-    panel: GraphPanel,
+    pub(crate) panel: GraphPanel,
     tab: usize,
     tab_rects: Vec<Rect>,
     prev: Option<Rect>,
@@ -33,6 +33,14 @@ impl Default for PlotsPane {
 
 impl PlotsPane {
     pub(crate) fn current(&self) -> Option<&str> { self.history.get(self.at).map(String::as_str) }
+
+    /// The panel shows the current plot again (Sakha borrowed it).
+    pub(crate) fn show_current(&mut self) {
+        match self.history.get(self.at) {
+            Some(svg) => self.panel.set_svg(svg.clone().into_bytes()),
+            None => self.panel.clear(),
+        }
+    }
 
     fn step(&mut self, by: isize) {
         let to = self.at as isize + by;
@@ -90,7 +98,7 @@ impl Gui {
     /// `r2 --ide` sends a plot as `plot()` first drew it: `lines()`, `abline()`,
     /// `points()` and `legend()` never reach its replies. `save.plot()` writes the whole
     /// figure, so after each run R2 is asked for it. Remove this when `--ide` sends it.
-    pub(crate) fn ask_whole_plot(&mut self, rid: Option<usize>) {
+    pub(crate) fn ask_whole_plot(&mut self, rid: Option<u64>) {
         if self.plots.history.is_empty() { return; }
         let code = format!("save.plot(\"{}\")", sakha_core::document::r_path(&whole_plot_file()));
         self.session.value(&code, Req::PlotFile { rid });
@@ -98,7 +106,7 @@ impl Gui {
 
     /// Additions only ever lengthen a figure; a shorter file is not one (after
     /// `dev.off()`, say).
-    pub(crate) fn whole_plot_reply(&mut self, rid: Option<usize>) {
+    pub(crate) fn whole_plot_reply(&mut self, rid: Option<u64>) {
         let file = whole_plot_file();
         let read = std::fs::read_to_string(&file);
         let _ = std::fs::remove_file(&file);

@@ -73,6 +73,8 @@ impl Gui {
             self.dispatch(&action, ctx, renderer, theme);
         }
         let below: &[InputEvent] = if press && (on_bar || menu_was_open || ctx_was_open) { &[] } else { ui_events };
+        // Gview floats over both faces: what lands on it is its own
+        let below: &[InputEvent] = if self.gview_input(below, ctx, theme) { &[] } else { below };
 
         if self.sakha_mode {
             self.sakha_input(below);
@@ -116,6 +118,7 @@ impl Gui {
             self.handle_close_buttons();
         }
 
+        self.paint_gview(frame, renderer, theme);
         self.paint_data_dialogs(workspace, frame, renderer, theme);
 
         // Popups and context menus last: no pane can cover a menu.

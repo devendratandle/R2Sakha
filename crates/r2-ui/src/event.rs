@@ -70,6 +70,12 @@ impl Clipboard {
     pub fn set_text(&mut self, s: &str) {
         if let Some(c) = self.inner.as_mut() { let _ = c.set_text(s); }
     }
+    /// Put HTML on the clipboard, with `alt` as the plain text for apps
+    /// that do not take HTML: Word and Outlook paste a table as a table,
+    /// a spreadsheet takes the tab-separated text. Returns `true` on success.
+    pub fn set_html(&mut self, html: &str, alt: &str) -> bool {
+        self.inner.as_mut().is_some_and(|c| c.set_html(html, Some(alt)).is_ok())
+    }
     /// Raw clipboard text, unprocessed. Most callers want
     /// [`get_text`] which returns the sanitized form.
     pub fn get_raw_text(&mut self) -> Option<String> {

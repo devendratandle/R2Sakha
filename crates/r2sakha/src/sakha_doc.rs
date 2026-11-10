@@ -7,11 +7,11 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use sakha_core::analysis;
+use sakha_core::analysis::{self, Built};
 use sakha_core::document::{data_stamp, quoted_path, r_path, resolved_path, stored_path, Document, SavedResult, SAKHA_EXT};
 use sakha_engine::json;
 
-use crate::sakha_view::{Face, SakhaResult};
+use crate::sakha_view::Face;
 use crate::session::Req;
 use crate::Gui;
 
@@ -43,10 +43,11 @@ impl Gui {
             steps: steps.to_vec(),
             results: s.results.iter().map(|r| SavedResult {
                 analysis: r.a.id.to_string(), title: r.title.clone(), code: r.code.clone(), statistic: r.statistic.clone(),
-                says: r.says.clone(), output: r.output.clone(), svg: r.svg.clone(),
+                says: r.says.clone(), output: r.output.clone(), svg: r.svg.clone(), labels: r.labels.clone(),
+                numbers_code: r.numbers_code.clone(), numbers: r.numbers.clone(), untabled: r.untabled,
             }).collect(),
-            face: match s.face { Face::Overview => "overview", Face::Data => "data", Face::Results => "results" }.into(),
-            current: s.current,
+            face: match s.face { Face::Overview => "overview", Face::Data => "data", Face::Results => "results", Face::Tables => "tables" }.into(),
+            current: s.report.focus_index(&s.results),
             selected: s.selected.and_then(|i| s.cols.get(i)).map(|c| c.name.clone()),
         })
     }
@@ -145,14 +146,24 @@ impl Gui {
         s.selected = None;
         s.reselect = doc.selected.clone();
         s.scroll = 0;
-        s.results = doc.results.iter().filter_map(|r| analysis::find(&r.analysis).map(|a| SakhaResult {
-            title: r.title.clone(), a, code: r.code.clone(), statistic: r.statistic.clone(), says: r.says.clone(),
-            output: r.output.clone(), svg: r.svg.clone(), running: false,
-        })).collect();
-        s.current = doc.current.min(s.results.len().saturating_sub(1));
-        s.panel_for = None;
-        s.result_scroll = 0;
-        s.face = match doc.face.as_str() { "data" => Face::Data, "results" => Face::Results, _ => Face::Overview };
+        s.results.clear();
+        s.report.reset();
+        for r in &doc.results {
+            let Some(a) = analysis::find(&r.analysis) else { continue };
+            let built = Built { title: r.title.clone(), code: r.code.clone(), statistic: r.statistic.clone(),
+                                labels: r.labels.clone(), numbers: r.numbers_code.clone() };
+            let uid = s.push_result(a, built);
+            if let Some(res) = s.result_mut(uid) {
+                res.numbers = r.numbers.clone();
+                res.untabled = r.untabled;
+                res.says = r.says.clone();
+                res.output = r.output.clone();
+                res.running = false;
+                res.set_svg(r.svg.clone());
+            }
+        }
+        if let Some(r) = s.results.get(doc.current) { s.report.jump_to(r.uid); }
+        s.face = match doc.face.as_str() { "data" => Face::Data, "results" => Face::Results, "tables" => Face::Tables, _ => Face::Overview };
         s.data_uid = Some(uid);
         s.choosing = false;
         s.data_changed = changed;
@@ -177,10 +188,10 @@ impl Gui {
 
     /// Run every result again, on the data as it is now.
     pub(crate) fn rerun_results(&mut self) {
-        for rid in 0..self.sakha.results.len() {
-            let r = &mut self.sakha.results[rid];
+        for r in &mut self.sakha.results {
+            let rid = r.uid;
             r.output.clear();
-            r.svg = None;
+            r.set_svg(None);
             r.running = true;
             r.says = "R2 is working…".into();
             let code = r.code.join("\n");
@@ -189,7 +200,6 @@ impl Gui {
         self.sakha.data_changed = false;
         self.sakha.status.clear();
         self.sakha.dirty = true;
-        self.sakha.panel_for = None;
     }
 
     /// Keep a backup of unsaved work, every so often.

@@ -40,9 +40,12 @@ mod dialogs;
 mod drive;
 mod env_view;
 mod frame;
+mod gview_view;
 mod menus;
 mod plots_view;
 mod project_view;
+mod report;
+mod tables_view;
 mod sakha_doc;
 mod sakha_dialog;
 mod sakha_view;
@@ -105,6 +108,8 @@ struct Gui {
     views: HashMap<u64, data_view::DataView>,
     next_view: u64,
     sakha: sakha_view::Sakha,
+    /// The graph window, over both faces.
+    gview: gview_view::Gview,
     /// Last pointer position: the wheel scrolls the pane under it.
     mouse: (f32, f32),
     grid: CellGridState,
@@ -185,6 +190,7 @@ impl Gui {
             views: HashMap::new(),
             next_view: 0,
             sakha: Default::default(),
+            gview: Default::default(),
             mouse: (0.0, 0.0),
             grid: CellGridState::new(),
             vscroll: Scrollbar::new(ScrollOrientation::Vertical),
