@@ -38,7 +38,7 @@ pub(crate) enum Req {
 pub(crate) enum After {
     /// A dataset was loaded from Sakha: show it there.
     OpenInSakha { df: String, load: String },
-    /// A dataset was loaded from the Studio: open it in the data viewer.
+    /// A dataset was loaded from Pro: open it in the data viewer.
     ViewData { df: String },
     /// A variable's name or type changed: say so if R2 refused.
     ColumnChange,

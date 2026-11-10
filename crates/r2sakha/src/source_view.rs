@@ -1,4 +1,4 @@
-//! The Studio's Source pane: tabs of scripts and data viewers, as in RStudio.
+//! Pro's Source pane: tabs of scripts and data viewers, as in RStudio.
 //!
 //! A script tab is an `r2_editor::Editor` painted as cells, with a line-number
 //! gutter, syntax colours, a selection band and a caret. All editing decisions

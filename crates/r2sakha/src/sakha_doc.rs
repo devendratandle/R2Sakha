@@ -18,11 +18,11 @@ use crate::Gui;
 /// How often unsaved changes are written to the backup.
 const BACKUP_EVERY: Duration = Duration::from_secs(30);
 
-/// Where R2Sakha keeps its own files: `R2SAKHA_CONFIG`, else the user's
+/// Where Ardon Studio keeps its own files: `ARDON_STUDIO_CONFIG`, else the user's
 /// application-data folder.
 pub(crate) fn config_dir() -> Option<PathBuf> {
-    if let Ok(d) = std::env::var("R2SAKHA_CONFIG") { return Some(PathBuf::from(d)); }
-    std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME")).map(|d| PathBuf::from(d).join("R2Sakha"))
+    if let Ok(d) = std::env::var("ARDON_STUDIO_CONFIG") { return Some(PathBuf::from(d)); }
+    std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME")).map(|d| PathBuf::from(d).join("Ardon Studio"))
 }
 
 pub(crate) fn backup_file() -> Option<PathBuf> { config_dir().map(|d| d.join("unsaved.sakha")) }
@@ -94,7 +94,7 @@ impl Gui {
         match doc {
             Ok(doc) => {
                 // with no project, R2 works beside the file, so its script's
-                // relative paths work when edited in the Studio
+                // relative paths work when edited in Pro
                 if let (None, Some(dir)) = (&self.project, path.parent()) {
                     self.session.value(&format!("setwd(\"{}\")", r_path(dir)), Req::Getwd);
                     self.session.cwd = dir.to_path_buf();

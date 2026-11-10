@@ -1,5 +1,5 @@
 //! Menu-bar and right-click menu construction. Action strings share one
-//! namespace with the dispatch in `actions.rs`. The Studio's menus follow the
+//! namespace with the dispatch in `actions.rs`. Pro's menus follow the
 //! pane in front; Sakha has its own, built from its list of analyses.
 
 use r2_ui::{ContextItem, ContextMenu, MenuBarState, MenuBuilder};
@@ -24,10 +24,10 @@ fn windows_and_help(mb: &mut MenuBuilder) {
         .item("Show all panes", "", "win.all")
         .item("Sakha",          "", "mode.sakha");
     mb.top("Help")
-        .item("About R2Sakha",  "", "help.about");
+        .item("About Ardon Studio",  "", "help.about");
 }
 
-/// The Studio, with the console or the Environment pane in front.
+/// Pro, with the console or the Environment pane in front.
 pub(crate) fn console_menu() -> MenuBarState {
     let mut mb = MenuBuilder::new();
     mb.top("File")
@@ -45,7 +45,7 @@ pub(crate) fn console_menu() -> MenuBarState {
     MenuBarState::new(mb.bar)
 }
 
-/// The Studio, with the Source pane in front: the editor's commands; the
+/// Pro, with the Source pane in front: the editor's commands; the
 /// shortcuts are handled in `source_view.rs`.
 pub(crate) fn script_menu() -> MenuBarState {
     let mut mb = MenuBuilder::new();
@@ -70,7 +70,7 @@ pub(crate) fn script_menu() -> MenuBarState {
     MenuBarState::new(mb.bar)
 }
 
-/// The Studio, with the Plots pane in front — a plot is output: no Paste.
+/// Pro, with the Plots pane in front — a plot is output: no Paste.
 pub(crate) fn graphics_menu() -> MenuBarState {
     let mut mb = MenuBuilder::new();
     mb.top("File")
@@ -92,7 +92,7 @@ pub(crate) fn sakha_menu() -> MenuBarState {
         .item("Save analysis",                  "Ctrl+S", "doc.save")
         .item("Save analysis as…",              "", "doc.save_as")
         .item("Export session script…",         "", "sakha.export")
-        .item("Edit session script in Studio",  "", "sakha.to_studio")
+        .item("Edit session script in Pro",  "", "sakha.to_studio")
         .item("Quit",                           "Ctrl+Q", "file.quit");
     data_menu(&mut mb, true);
     for top in ["Summarize", "Compare", "Relate", "Plot"] {
@@ -108,7 +108,7 @@ pub(crate) fn sakha_menu() -> MenuBarState {
         .item("Results",        "", "sakha.results")
         .item("Session script", "", "sakha.script");
     mb.top("Help")
-        .item("About R2Sakha",  "", "help.about");
+        .item("About Ardon Studio",  "", "help.about");
     MenuBarState::new(mb.bar)
 }
 

@@ -1,4 +1,4 @@
-// Embed the R2 icon and version metadata into R2Sakha.exe, so it shows
+// Embed the R2 icon and version metadata into ArdonStudio.exe, so it shows
 // branded in Explorer, the taskbar and Alt-Tab.
 
 use std::path::PathBuf;
@@ -16,8 +16,8 @@ fn main() {
     {
         let mut res = winresource::WindowsResource::new();
         res.set_icon(ico_path.to_str().unwrap());
-        res.set("ProductName",     "R2Sakha");
-        res.set("FileDescription", "R2Sakha — the IDE for Ardon-R2");
+        res.set("ProductName",     "Ardon Studio");
+        res.set("FileDescription", "Ardon Studio — the IDE for Ardon-R2");
         res.set("CompanyName",     "Devendra Tandale");
         res.set("LegalCopyright",  "AGPL-3.0");
         if let Err(e) = res.compile() {

@@ -1,12 +1,12 @@
-//! The Studio layout and the switch between the app's two faces.
+//! Pro layout and the switch between the app's two faces.
 //!
 //! Source top-left, Console bottom-left, Environment top-right, Plots
 //! bottom-right — RStudio's arrangement — with the gaps between them as
 //! draggable dividers (`sakha_core::layout` has the math). Panes stay on their
 //! tiles; a pane's maximize button is the one way to give it the workspace.
 //!
-//! R2Sakha ships one program with two complementary faces on one R2 session:
-//! the **Studio** for people who write scripts, **Sakha** for people who work
+//! Ardon Studio ships one program with two complementary faces on one R2 session:
+//! the **Pro** for people who write scripts, **Sakha** for people who work
 //! from menus. The switch in the menu bar changes face in one click, and
 //! each keeps its state while the other is in front.
 
@@ -112,7 +112,7 @@ impl Gui {
         let (cw, lh) = renderer.cell_metrics(theme.fs());
         let (rects, project) = self.bar_rects(bar, renderer, theme);
         for (r, sakha) in rects {
-            button(frame, renderer, theme, r, if sakha { "Sakha" } else { "Studio" }, sakha == self.sakha_mode);
+            button(frame, renderer, theme, r, if sakha { "Sakha" } else { "Pro" }, sakha == self.sakha_mode);
         }
         let label = self.project_label();
         button(frame, renderer, theme, project, &label, self.project_menu.is_open());

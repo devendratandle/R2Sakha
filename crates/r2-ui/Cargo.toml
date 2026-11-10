@@ -1,13 +1,13 @@
 [package]
 name = "r2-ui"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 license = "AGPL-3.0"
 description = "Ardon-R2 GUI framework — grid-based, terminal-philosophy, modern-stack. Designed once, intended to remain stable for years (see docs/R2_UI_FRAMEWORK.md)."
 
 
 [dependencies]
-# R2Sakha's own copy of the framework: it links no Ardon-R2 crate (the
+# Ardon Studio's own copy of the framework: it links no Ardon-R2 crate (the
 # console buffer it once shared with the CLI lives in the app).
 
 # Substrate (we depend on, don't reinvent).

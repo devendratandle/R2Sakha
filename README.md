@@ -1,19 +1,19 @@
-# R2Sakha
+# Ardon Studio
 
 One program with two complementary faces on one **Ardon-R2** session, so
 nobody has to install two applications. A switch at the top right changes face.
 
-- **Studio**, the script environment, as RStudio is for R: Source, Console,
+- **Pro**, the script environment, as RStudio is for R: Source, Console,
   Environment and Plots panes.
 - **Sakha**, menu-driven statistics in the spirit of Wizard 2 and Wizard Pro:
   the data comes first, you choose from menus, and you never type code.
 
-R2Sakha contains no Ardon-R2 code. It starts `r2 --ide` and talks to it over
+Ardon Studio contains no Ardon-R2 code. It starts `r2 --ide` and talks to it over
 stdin/stdout, one JSON object per line ([docs/IDE_PROTOCOL.md](docs/IDE_PROTOCOL.md)).
-R2 does every statistic, printed value and plot; R2Sakha shows them. Both faces
+R2 does every statistic, printed value and plot; Ardon Studio shows them. Both faces
 share one session, so data loaded in one is there in the other.
 
-## Studio
+## Pro
 
 | Pane | What |
 |---|---|
@@ -42,7 +42,7 @@ time, so large frames open at once.
 
 Each item opens a dialog that offers only the variables its role can take.
 Everything done is recorded as a **session script**: read it beside the results,
-export it as `.r2`, or open it in the Studio. `Run in Studio` sends the code on
+export it as `.r2`, or open it in Pro. `Run in Pro` sends the code on
 screen to the Console.
 
 Sakha's numbers are checked against GNU R 4.5.3 (`crates/sakha-core/tests/real_r2.rs`).
@@ -72,8 +72,8 @@ you. Opening the file puts you back where you were:
   missing, the saved results are still there to read.
 - Unsaved work is backed up every 30 seconds, and offered back after a crash.
 
-**From Sakha to scripts:** build a workflow from the menus, then **Edit in Studio**
-opens its session script as an ordinary script to fine-tune. In the Studio, **Import
+**From Sakha to scripts:** build a workflow from the menus, then **Edit in Pro**
+opens its session script as an ordinary script to fine-tune. In Pro, **Import
 CSV** loads a file into R2 and opens it in a data tab. A file inside the working
 folder is loaded by a relative path, so scripts keep working when the folder moves.
 
@@ -93,7 +93,7 @@ Laid out on the lines of Rcmdr's, in both faces. It offers only what R2 honours.
 | Variable names and types (Sakha) | rename a column; number or category. Values are never edited here |
 
 In Sakha, the **Dataset** button in the header does the same as Select dataset. Data
-loaded in the Studio is simply there: if it is the only data frame, switching to
+loaded in Pro is simply there: if it is the only data frame, switching to
 Sakha opens it. Column changes are R2 code in the session script, and run again on
 reopening a `.sakha`.
 
@@ -105,37 +105,47 @@ factor levels (`levels<-`).
 
 | crate | what |
 |---|---|
-| `crates/r2sakha` | the app (`R2Sakha.exe`) |
+| `crates/r2sakha` | the app (`ArdonStudio.exe`) |
 | `crates/sakha-core` | headless logic: analyses, variable profiles, session script, layout |
 | `crates/sakha-engine` | the link to R2: starts `r2 --ide`, sends requests, reads output and replies |
-| `crates/r2-ui` | R2Sakha's own copy of Ardon-R2's GUI framework (winit + wgpu + fontdue) |
+| `crates/r2-ui` | Ardon Studio's own copy of Ardon-R2's GUI framework (winit + wgpu + fontdue) |
 | `crates/r2-editor` | script editor core (buffer, undo, highlighting, Run statement) |
+
+## Install
+
+Run `ArdonStudio-Setup-<version>.exe`. It installs for your user account, with no
+admin rights, and includes an `r2.exe` with `--ide` beside `ArdonStudio.exe`, so it
+runs at once. It can associate `.sakha` and `.r2proj` files with Ardon Studio.
+
+To build the installer: `cargo build --release -p r2sakha`, copy an `r2.exe` built
+with `--ide` to `installer\bundle\`, then compile `installer\ArdonStudio.iss` with
+Inno Setup 6.
 
 ## Engine
 
-R2Sakha needs an `r2` that supports `--ide` (Ardon-R2 with handoff 7). It uses
+Ardon Studio needs an `r2` that supports `--ide` (Ardon-R2 with handoff 7). It uses
 the first it finds:
 
-1. `R2SAKHA_R2`: the full path of `r2.exe`
-2. `r2.exe` next to `R2Sakha.exe`
+1. `ARDON_STUDIO_R2`: the full path of `r2.exe`
+2. `r2.exe` next to `ArdonStudio.exe`
 3. `r2.exe` on `PATH`
 4. `C:\Program Files\Ardon-R2\r2.exe`
 
 An older `r2` without `--ide` is reported in the Console.
 
-While R2Sakha runs, Windows keeps its `r2.exe` locked. **Do not point it at
+While Ardon Studio runs, Windows keeps its `r2.exe` locked. **Do not point it at
 Ardon-R2's `target\release\r2.exe` while building Ardon-R2**: copy the exe next
-to `R2Sakha.exe` instead, and copy it again after each new R2 build.
+to `ArdonStudio.exe` instead, and copy it again after each new R2 build.
 
 ## Build and test
 
 ```powershell
 cargo build --release -p r2sakha
 Copy-Item <Ardon-R2>\target\release\r2.exe target\release\
-.\target\release\R2Sakha.exe
+.\target\release\ArdonStudio.exe
 
-$env:R2SAKHA_R2 = "<a copy of r2.exe>"
-cargo test --workspace          # without R2SAKHA_R2 the engine tests skip
+$env:ARDON_STUDIO_R2 = "<a copy of r2.exe>"
+cargo test --workspace          # without ARDON_STUDIO_R2 the engine tests skip
 ```
 
 `--features drive` adds a scripted-input test driver (`crates/r2sakha/src/drive.rs`)

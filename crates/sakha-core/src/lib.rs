@@ -1,6 +1,6 @@
-//! R2Sakha's logic, without a GUI, so tests can drive it headless.
+//! Ardon Studio's logic, without a GUI, so tests can drive it headless.
 //!
-//! * [`layout`] — the Studio's four panes and their dividers.
+//! * [`layout`] — Pro's four panes and their dividers.
 //! * [`profile`] — Sakha's view of a data frame's variables.
 //! * [`analysis`] — Sakha's menu: what each analysis asks for, the R2 code
 //!   it runs, and how its result reads in plain words.

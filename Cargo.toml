@@ -8,11 +8,12 @@ members = [
     "crates/r2sakha",
 ]
 
-# R2Sakha links no Ardon-R2 crate. It runs the installed `r2 --ide` as its
+# Ardon Studio links no Ardon-R2 crate. It runs the installed `r2 --ide` as its
 # engine and talks to it in JSON lines (docs/IDE_PROTOCOL.md), the way
-# RStudio drives R. r2-ui is R2Sakha's own copy of the framework.
+# RStudio drives R. r2-ui is Ardon Studio's own copy of the framework.
 [workspace.package]
-version = "0.1.0"
+# One version for Ardon Studio and its two sections, Pro and Sakha.
+version = "0.0.1"
 
 [profile.release]
 strip = "symbols"

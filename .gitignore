@@ -2,3 +2,5 @@
 **/*.rs.bk
 /*.exe
 /*.pdb
+/installer/Output/
+/installer/bundle/

@@ -2,7 +2,7 @@
 //! A frozen header (column name, and its type underneath), a frozen row-label
 //! column, then the cells, formatted by R2 as `print()` formats them. Only the
 //! pages on screen are asked for, so a million-row frame opens at once. Used
-//! by the Studio's Source tabs and by Sakha's Data tab.
+//! by Pro's Source tabs and by Sakha's Data tab.
 
 use std::collections::{HashMap, HashSet};
 

@@ -1,21 +1,21 @@
 // No console window behind the IDE in release builds.
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
-//! R2Sakha — one program with two faces on one Ardon-R2 session, so nobody
+//! Ardon Studio — one program with two faces on one Ardon-R2 session, so nobody
 //! has to install two complementary applications:
 //!
-//! * the **Studio**, a script environment in RStudio's arrangement;
+//! * the **Pro**, a script environment in RStudio's arrangement;
 //! * **Sakha**, menu-driven statistics where the user chooses, never codes.
 //!
-//! A switch in the menu bar changes face. R2Sakha links no Ardon-R2 code: it
+//! A switch in the menu bar changes face. Ardon Studio links no Ardon-R2 code: it
 //! starts the installed `r2 --ide` and talks to it in JSON lines
 //! (`sakha-engine`, docs/IDE_PROTOCOL.md), as RStudio drives R. R2 computes,
-//! prints and plots; R2Sakha shows.
+//! prints and plots; Ardon Studio shows.
 //!
 //! Files: this one sets the process up and owns the state (`Gui`); `session.rs`
 //! is the link to R2 and routes its replies; `frame.rs` runs one frame in
 //! order; `actions.rs` carries out menu commands; `menus.rs` builds the menus.
-//! The Studio: `studio_view.rs` (layout and the switch), `source_view.rs`
+//! Pro: `studio_view.rs` (layout and the switch), `source_view.rs`
 //! (script and data tabs), `console_view.rs` and `console.rs` (the console),
 //! `env_view.rs` (Environment, History), `plots_view.rs` (Plots, Files),
 //! `data_view.rs` (the data grid, Sakha's too). Sakha: `sakha_view.rs` and
@@ -66,7 +66,7 @@ fn main() -> Result<(), String> {
     std::thread::spawn(r2_ui::graph::warm_fonts);
 
     let mut gui = Gui::new(cwd)?;
-    R2Ui::app("R2Sakha")
+    R2Ui::app("Ardon Studio")
         .theme(Theme::default())
         .initial_size(1280, 800)
         .icon_png(LOGO_PNG)
@@ -92,7 +92,7 @@ struct Gui {
     env_id: WindowId,
     plots_id: WindowId,
     workspace: Rect,
-    /// Sakha is in front; otherwise the Studio.
+    /// Sakha is in front; otherwise Pro.
     sakha_mode: bool,
     studio: Studio,
     divider_drag: Option<Divider>,
@@ -152,7 +152,7 @@ struct Gui {
 impl Gui {
     fn new(cwd: std::path::PathBuf) -> Result<Gui, String> {
         let mut buffer = ConsoleBuffer::new();
-        buffer.push_banner(&format!("R2Sakha {}: Studio for scripts, Sakha for menus (switch at top right).", env!("CARGO_PKG_VERSION")));
+        buffer.push_banner(&format!("Ardon Studio {}: Pro for scripts, Sakha for menus (switch at top right).", env!("CARGO_PKG_VERSION")));
         buffer.push_banner("Ctrl+Enter runs the script line. Esc stops a running computation. q() quits.");
 
         // The panes' bounds are set every frame (`apply_studio`).

@@ -158,7 +158,7 @@ impl Gui {
             entry("R2 datasets", "the examples that come with R2", "data.r2_list"),
         ];
         if self.env.rows.iter().any(|r| r.is_data_frame()) {
-            items.push(entry("In this session", "data loaded here or in the Studio", "data.select"));
+            items.push(entry("In this session", "data loaded here or in Pro", "data.select"));
         }
         self.list_dialog = Some(ListDialog::new("Load new dataset", "Where is the data?", items));
     }
@@ -170,7 +170,7 @@ impl Gui {
             let action = if sakha { format!("sakha.df:{}", r.name) } else { format!("data.view:{}", r.name) };
             (r.name.clone(), r.summary.clone(), action)
         }).collect();
-        self.list_dialog = Some(ListDialog::new("Select dataset", "Data frames in this session, from the Studio or Sakha:", items));
+        self.list_dialog = Some(ListDialog::new("Select dataset", "Data frames in this session, from Pro or Sakha:", items));
     }
 
     /// Data ▸ R2 datasets…: ask R2 what it has, so the menu never needs to change.

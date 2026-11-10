@@ -1,4 +1,4 @@
-//! Drives a real `r2 --ide`. Set R2SAKHA_R2 to an r2 executable built
+//! Drives a real `r2 --ide`. Set ARDON_STUDIO_R2 to an r2 executable built
 //! with `--ide`; without it these tests say so and pass.
 
 use std::path::PathBuf;

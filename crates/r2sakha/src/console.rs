@@ -1,5 +1,5 @@
 //! The console's state: transcript, the `+` continuation and history.
-//! R2Sakha's own copy of Ardon-R2's console buffer (r2-console), without
+//! Ardon Studio's own copy of Ardon-R2's console buffer (r2-console), without
 //! its engine types: here the engine is a separate process, and its
 //! output arrives in chunks (`stream` lines) that need not end a line.
 

@@ -1,4 +1,4 @@
-//! The Studio's bottom-right pane: **Plots**, with the session's plot history
+//! Pro's bottom-right pane: **Plots**, with the session's plot history
 //! to step through, and **Files**, the working folder to browse. R2 sends each
 //! changed plot as SVG; this pane keeps them to show, save and copy.
 
@@ -158,7 +158,7 @@ impl Gui {
         match ext.as_str() {
             "csv" => self.queued = Some(format!("data.open:{}", path.display())),
             "r" | "r2" | "txt" | "md" => self.open_script_file(&path),
-            _ => self.buffer.push_output(&format!("{name}: R2Sakha opens .R, .R2, .txt, .md and .csv files.")),
+            _ => self.buffer.push_output(&format!("{name}: Ardon Studio opens .R, .R2, .txt, .md and .csv files.")),
         }
     }
 

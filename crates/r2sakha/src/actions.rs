@@ -44,7 +44,7 @@ impl Gui {
             "win.all"              => self.show_all_panes(),
             "mode.sakha" => {
                 self.set_mode(true);
-                // data loaded in the Studio: with only one choice, it is the one
+                // data loaded in Pro: with only one choice, it is the one
                 if self.sakha.df.is_none() {
                     let frames: Vec<String> = self.env.rows.iter().filter(|r| r.is_data_frame()).map(|r| r.name.clone()).collect();
                     if let [only] = frames.as_slice() { let only = only.clone(); self.open_sakha(&only, None); }
@@ -93,7 +93,7 @@ impl Gui {
                         .map(|f| format!("project.new:{}", f.display()))
                 } else {
                     rfd::FileDialog::new().set_title("Open project").set_directory(&self.session.cwd)
-                        .add_filter("R2Sakha project", &[sakha_core::document::PROJECT_EXT]).pick_file()
+                        .add_filter("Ardon Studio project", &[sakha_core::document::PROJECT_EXT]).pick_file()
                         .map(|f| format!("project.open:{}", f.display()))
                 };
                 if picked.is_some() { self.queued = picked; }
@@ -103,9 +103,9 @@ impl Gui {
             a if a.starts_with("sakha.") => self.sakha_action(a),
             "help.about" => {
                 self.buffer.push_banner(&format!(
-                    "R2Sakha {}: one program with two faces on one Ardon-R2 session. AGPL-3.0.",
+                    "Ardon Studio {}: one program with two faces on one Ardon-R2 session. AGPL-3.0.",
                     env!("CARGO_PKG_VERSION")));
-                self.buffer.push_banner("Studio is for writing scripts; Sakha is for working from menus. R2 (r2 --ide) computes for both.");
+                self.buffer.push_banner("Pro is for writing scripts; Sakha is for working from menus. R2 (r2 --ide) computes for both.");
             }
             _ => {}
         }

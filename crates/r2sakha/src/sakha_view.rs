@@ -7,15 +7,15 @@
 //!   │ ◆ grp     │  │ ▁▃▅█▇▃▁  │ │ a ███    │ │ ▂▅█▆▃    │
 //!   └───────────┘  └──────────┘ └──────────┘ └──────────┘
 //!   Sakha says: score: 118 values, average 80.0 ...
-//!   Code  summary(trial$score); ...                                [Run in Studio]
+//!   Code  summary(trial$score); ...                                [Run in Pro]
 //! ```
 //!
-//! The philosophy is the opposite of the Studio's: the data comes first, and
+//! The philosophy is the opposite of Pro's: the data comes first, and
 //! the user chooses from menus (Summarize, Compare, Relate, Plot), never
 //! typing code. Each menu item opens a dialog asking only for the variables
 //! it needs; the result is a card with R2's output, its plot and a line in
 //! plain words. Sakha computes nothing: all of it is R2 code run by `r2 --ide`,
-//! on the same session as the Studio, and everything done is recorded in the
+//! on the same session as Pro, and everything done is recorded in the
 //! session script. On-screen cards are described first, a few columns at a
 //! time, so a large dataset never freezes the window.
 
@@ -529,7 +529,7 @@ impl Gui {
         let show = self.sakha.show_script;
         let r = button_left_of(frame, renderer, theme, right, by, bh, "Script", show);
         self.sakha.hits.script_toggle = Some(r); right = r.x - 6.0;
-        let r = button_left_of(frame, renderer, theme, right, by, bh, "Edit in Studio", false);
+        let r = button_left_of(frame, renderer, theme, right, by, bh, "Edit in Pro", false);
         self.sakha.hits.to_studio = Some(r); right = r.x - 6.0;
         right -= 2.0;
         if self.sakha.data_changed {
@@ -562,7 +562,7 @@ impl Gui {
         let code = self.sakha.code().join("; ");
         let cy = fy + 6.0 + lh * 2.0;
         frame.paint_rect(c.x + 4.0, cy - 2.0, c.w - 8.0, lh + 4.0, mix(bg, fg, 0.10));
-        let run = button_left_of(frame, renderer, theme, c.x + c.w - 6.0, cy - 2.0, lh + 4.0, "Run in Studio", false);
+        let run = button_left_of(frame, renderer, theme, c.x + c.w - 6.0, cy - 2.0, lh + 4.0, "Run in Pro", false);
         self.sakha.hits.run = Some(run);
         text(frame, renderer, c.x + 8.0, cy + lh * 0.8, &format!("Code  {code}"), size, theme.console_input, cw, run.x - cw);
 

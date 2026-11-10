@@ -1,5 +1,5 @@
 //! Every analysis on Sakha's menu, run through a real `r2 --ide` and checked
-//! against the numbers GNU R 4.5.3 gives on the same data. Set R2SAKHA_R2 to
+//! against the numbers GNU R 4.5.3 gives on the same data. Set ARDON_STUDIO_R2 to
 //! an r2 executable built with `--ide`; without it these tests say so and pass.
 
 use std::path::PathBuf;

@@ -19,7 +19,7 @@ impl Gui {
         let unsaved = self.source.unsaved();
         let sakha_dirty = self.sakha.dirty;
         let d = &mut self.quit_dialog;
-        d.title = "Quit R2Sakha".into();
+        d.title = "Quit Ardon Studio".into();
         d.lines = vec!["Save workspace image?".into()];
         if unsaved > 0 {
             d.lines.push(format!("{unsaved} script{} not saved and will be lost.",

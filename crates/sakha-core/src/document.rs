@@ -1,4 +1,4 @@
-//! The two files R2Sakha saves, both small, readable JSON that works in Git.
+//! The two files Ardon Studio saves, both small, readable JSON that works in Git.
 //!
 //! * [`Document`] is a `.sakha` file: one menu-driven analysis, like a
 //!   jamovi file. It can sit anywhere, alone or in a project folder. It holds
@@ -7,7 +7,7 @@
 //!   and where the user was.
 //! * [`Project`] is a `.r2proj` file: it marks its folder as a project, as
 //!   `.Rproj` does. The folder is R2's working folder for the session. The
-//!   file holds the Studio's open scripts and layout, relative to the folder.
+//!   file holds Pro's open scripts and layout, relative to the folder.
 //!
 //! Neither holds R2's memory: reopening reruns the load and the steps that
 //! change the data. [`Recent`] is the list of files lately opened.
@@ -36,7 +36,7 @@ fn parse(text: &str, format: &str, what: &str) -> Result<Value, String> {
     let v: Value = sakha_engine::parse_json(text).map_err(|e| format!("this is not a {what} file: {e}"))?;
     if v["format"].as_str() != Some(format) { return Err(format!("this is not a {what} file")); }
     if v["version"].as_u64().unwrap_or(0) > VERSION {
-        return Err(format!("this {what} file was saved by a newer R2Sakha"));
+        return Err(format!("this {what} file was saved by a newer Ardon Studio"));
     }
     Ok(v)
 }

@@ -1,9 +1,9 @@
-//! R2Sakha's engine: the installed Ardon-R2, run as `r2 --ide`.
+//! Ardon Studio's engine: the installed Ardon-R2, run as `r2 --ide`.
 //!
-//! R2Sakha links no Ardon-R2 code. Like RStudio with R, it starts the
+//! Ardon Studio links no Ardon-R2 code. Like RStudio with R, it starts the
 //! `r2` executable as a child process and talks to it over stdin/stdout,
 //! one JSON object per line (docs/IDE_PROTOCOL.md). R2 does every
-//! statistic, every printed value and every plot; R2Sakha displays them.
+//! statistic, every printed value and every plot; Ardon Studio displays them.
 //!
 //! The GUI never blocks on R2: [`Engine::send`] returns the request's id
 //! at once, and each frame [`Engine::poll`] hands over whatever R2 wrote
@@ -25,11 +25,11 @@ pub fn parse_json(text: &str) -> Result<Value, String> { serde_json::from_str(te
 /// JSON as readable, line-by-line text.
 pub fn pretty_json(v: &Value) -> String { serde_json::to_string_pretty(v).unwrap_or_default() }
 
-/// The protocol version this R2Sakha speaks (`hello` must report it).
+/// The protocol version this Ardon Studio speaks (`hello` must report it).
 pub const PROTOCOL: u64 = 1;
 
 /// Environment variable naming the `r2` executable to use.
-pub const R2_PATH_VAR: &str = "R2SAKHA_R2";
+pub const R2_PATH_VAR: &str = "ARDON_STUDIO_R2";
 
 /// Something R2 wrote.
 #[derive(Debug, Clone, PartialEq)]
@@ -96,7 +96,7 @@ impl Engine {
             protocol: r["protocol"].as_u64().unwrap_or(0),
         };
         if hello.protocol != PROTOCOL {
-            return Err(format!("{} speaks IDE protocol {}, R2Sakha needs {PROTOCOL}", exe.display(), hello.protocol));
+            return Err(format!("{} speaks IDE protocol {}, Ardon Studio needs {PROTOCOL}", exe.display(), hello.protocol));
         }
         Ok((e, hello))
     }
@@ -182,8 +182,8 @@ fn parse_line(line: &str) -> Option<Msg> {
     Some(Msg::Reply { id, body: v })
 }
 
-/// The `r2` executable to run, first found: `$R2SAKHA_R2`; `r2` beside
-/// R2Sakha's own executable; `r2` on PATH; the Ardon-R2 installer's
+/// The `r2` executable to run, first found: `$ARDON_STUDIO_R2`; `r2` beside
+/// Ardon Studio's own executable; `r2` on PATH; the Ardon-R2 installer's
 /// folder.
 pub fn find_r2() -> Option<PathBuf> {
     let exe_name = if cfg!(windows) { "r2.exe" } else { "r2" };

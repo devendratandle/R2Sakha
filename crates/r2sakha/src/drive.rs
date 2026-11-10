@@ -1,7 +1,7 @@
 //! Test driver, only in builds with `--features drive`: scripted input for
 //! checking the real window end to end, with no real keyboard or mouse.
 //!
-//! When `R2SAKHA_DRIVE` names a file, its lines are taken as commands, one
+//! When `ARDON_STUDIO_DRIVE` names a file, its lines are taken as commands, one
 //! per frame, and the file is removed: `text ...`, `enter`, `ctrlenter`,
 //! `ctrlshiftenter`, `esc`, `backspace`, `click X Y`, `wheel DY`, `ctrls`,
 //! and `do ACTION` for a menu action (with a path, in place of a file dialog).
@@ -23,7 +23,7 @@ fn key(code: KeyCode, mods: Mods) -> Vec<InputEvent> {
 
 /// Add this frame's scripted events to the frame's input.
 pub(crate) fn inject(ctx: &mut FrameCtx) {
-    let Ok(path) = std::env::var("R2SAKHA_DRIVE") else { return };
+    let Ok(path) = std::env::var("ARDON_STUDIO_DRIVE") else { return };
     let mut q = QUEUE.lock().unwrap();
     if let Ok(text) = std::fs::read_to_string(&path) {
         if std::fs::remove_file(&path).is_ok() { q.extend(text.lines().map(String::from)); }
