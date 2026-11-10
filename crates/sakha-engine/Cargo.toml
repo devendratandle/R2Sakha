@@ -1,0 +1,9 @@
+[package]
+name = "sakha-engine"
+version.workspace = true
+edition = "2021"
+license = "AGPL-3.0"
+description = "R2Sakha's link to its engine: starts the installed `r2 --ide` and talks to it in JSON lines (docs/IDE_PROTOCOL.md). No GUI; the tests drive a real r2."
+
+[dependencies]
+serde_json = "1"

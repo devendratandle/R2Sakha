@@ -1,0 +1,27 @@
+[package]
+name = "r2sakha"
+version.workspace = true
+edition = "2021"
+license = "AGPL-3.0"
+description = "R2Sakha — the IDE for Ardon-R2 (as RStudio is for R), with Sakha's menu-driven statistics. Runs the installed `r2 --ide` as its engine."
+
+[[bin]]
+name = "R2Sakha"
+path = "src/main.rs"
+
+[features]
+# Scripted input for testing the real window (src/drive.rs). Never in a release.
+drive = []
+
+[dependencies]
+r2-ui        = { path = "../r2-ui" }
+sakha-engine = { path = "../sakha-engine" }
+sakha-core   = { path = "../sakha-core" }
+r2-editor    = { path = "../r2-editor" }
+# logo decoding, and PNG export of plots
+image = { version = "0.25", default-features = false, features = ["png"] }
+# native file picker
+rfd = "0.14"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

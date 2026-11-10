@@ -1,0 +1,9 @@
+[package]
+name = "sakha-core"
+version.workspace = true
+edition = "2021"
+license = "AGPL-3.0"
+description = "R2Sakha's logic without a GUI: Sakha's analyses and variable profiles, the session script, and the Studio's four-pane layout. Everything statistical is R2 code handed to `r2 --ide`; the tests check it against GNU R's numbers."
+
+[dependencies]
+sakha-engine = { path = "../sakha-engine" }

@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/r2-ui",
+    "crates/r2-editor",
+    "crates/sakha-engine",
+    "crates/sakha-core",
+    "crates/r2sakha",
+]
+
+# R2Sakha links no Ardon-R2 crate. It runs the installed `r2 --ide` as its
+# engine and talks to it in JSON lines (docs/IDE_PROTOCOL.md), the way
+# RStudio drives R. r2-ui is R2Sakha's own copy of the framework.
+[workspace.package]
+version = "0.1.0"
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+opt-level = 3

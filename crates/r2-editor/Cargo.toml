@@ -1,0 +1,10 @@
+[package]
+name = "r2-editor"
+version.workspace = true
+edition = "2021"
+license = "AGPL-3.0"
+description = "Ardon-R2 script editor core — text buffer, cursor and selection, undo, syntax highlighting, statement detection for Run. No GUI: r2-gui paints it, the tests drive it headless."
+
+# Deliberately dependency-free: everything here is plain text logic, so it
+# builds and tests anywhere CI runs, with no window or GPU.
+[dependencies]
