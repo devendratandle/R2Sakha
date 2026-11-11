@@ -47,7 +47,7 @@ jobs:
             os: windows-latest
             r2_asset: r2-windows-x86_64.zip
           - name: linux
-            os: ubuntu-22.04      # an older glibc, so it runs on more systems
+            os: ubuntu-24.04      # the system Ardon-R2 builds its Linux r2 on (glibc 2.39)
             r2_asset: r2-linux-x86_64.tar.gz
           - name: macos
             os: macos-latest      # Apple silicon
@@ -95,6 +95,8 @@ jobs:
           fi
           rm r2-asset
           ls -l installer/bundle
+          # it must start here, or nothing after this can work
+          installer/bundle/r2 --version || installer/bundle/r2.exe --version
 
       - name: Test against that r2
         run: cargo test --workspace
@@ -148,7 +150,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Installed-Size: $SIZE
-          Depends: libc6, libgcc-s1, libxkbcommon0, libxkbcommon-x11-0
+          Depends: libc6 (>= 2.39), libgcc-s1, libxkbcommon0, libxkbcommon-x11-0
           Recommends: xdg-desktop-portal, libvulkan1, mesa-vulkan-drivers
           Maintainer: Devendra Tandale <noreply@users.noreply.github.com>
           Homepage: https://github.com/devendratandle/R2Sakha

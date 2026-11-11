@@ -9,5 +9,5 @@ On Debian and Ubuntu you can install the .deb file from the release instead.
 You can also run it without installing: ./ArdonStudio
 Keep the file "r2" beside it. That is Ardon-R2, the engine Ardon Studio runs.
 
-Ardon Studio needs a desktop with Vulkan or OpenGL graphics. The Open and
+It needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40) and a desktop with Vulkan or OpenGL graphics. The Open and
 Save windows use your desktop's file chooser (xdg-desktop-portal).
