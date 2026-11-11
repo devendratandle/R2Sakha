@@ -57,11 +57,13 @@ impl Gui {
         // A click that lands on a menu must not also reach what is under it.
         let press = ui_events.iter().any(|e| matches!(e, InputEvent::MouseDown { button: MouseButton::Left, .. }));
         let on_bar = ui_events.iter().any(|e| matches!(e, InputEvent::MouseDown { pos, .. } if pos.y < menu_h));
-        let ctx_was_open = self.ctx_console.is_open() || self.ctx_graphics.is_open() || self.project_menu.is_open() || self.dataset_menu.is_open();
+        let ctx_was_open = self.ctx_console.is_open() || self.ctx_graphics.is_open() || self.project_menu.is_open() || self.dataset_menu.is_open() || self.column_menu.is_open();
         let menu_was_open = self.bar_menu(bar).open.is_some();
         let picked = self.project_menu.handle_events(ui_events, Rect { x: 0.0, y: 0.0, w: 0.0, h: 0.0 }, renderer, theme);
         if let Some(action) = picked { self.dispatch(&action, ctx, renderer, theme); }
         let picked = self.dataset_menu.handle_events(ui_events, Rect { x: 0.0, y: 0.0, w: 0.0, h: 0.0 }, renderer, theme);
+        if let Some(action) = picked { self.dispatch(&action, ctx, renderer, theme); }
+        let picked = self.column_menu.handle_events(ui_events, Rect { x: 0.0, y: 0.0, w: 0.0, h: 0.0 }, renderer, theme);
         if let Some(action) = picked { self.dispatch(&action, ctx, renderer, theme); }
         // a click that only closed the popup does nothing more
         if !ctx_was_open {
@@ -127,6 +129,7 @@ impl Gui {
         self.ctx_graphics.paint(frame, renderer, theme);
         self.project_menu.paint(frame, renderer, theme);
         self.dataset_menu.paint(frame, renderer, theme);
+        self.column_menu.paint(frame, renderer, theme);
 
         self.run_dialogs(ctx, frame, renderer, theme, win_w, win_h);
     }

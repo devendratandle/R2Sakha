@@ -18,7 +18,8 @@
 //! Pro: `studio_view.rs` (layout and the switch), `source_view.rs`
 //! (script and data tabs), `console_view.rs` and `console.rs` (the console),
 //! `env_view.rs` (Environment, History), `plots_view.rs` (Plots, Files),
-//! `data_view.rs` (the data grid, Sakha's too). Sakha: `sakha_view.rs` and
+//! `data_view.rs` (the data grid, Sakha's too). Sakha: `sakha_view.rs`,
+//! `data_edit.rs` (editing data in the Data tab) and
 //! `sakha_dialog.rs` and `sakha_doc.rs` (its `.sakha` file), on `sakha-core`.
 //! `project_view.rs` is project folders (`.r2proj`). `dialogs.rs` has the modals.
 
@@ -34,6 +35,7 @@ mod actions;
 mod console;
 mod console_view;
 mod data_dialogs;
+mod data_edit;
 mod data_view;
 mod dialogs;
 #[cfg(feature = "drive")]
@@ -135,8 +137,11 @@ struct Gui {
     list_dialog: Option<data_dialogs::ListDialog>,
     import_dialog: Option<data_dialogs::ImportDialog>,
     attr_dialog: Option<data_dialogs::AttributesDialog>,
+    edit_dialog: Option<data_edit::EditDialog>,
     /// Sakha's dataset button's popup.
     dataset_menu: ContextMenu,
+    /// A variable's menu, under its name in the Data tab.
+    column_menu: ContextMenu,
     /// The project button's popup.
     project_menu: ContextMenu,
     project: Option<project_view::OpenProject>,
@@ -209,7 +214,9 @@ impl Gui {
             list_dialog: None,
             import_dialog: None,
             attr_dialog: None,
+            edit_dialog: None,
             dataset_menu: ContextMenu::new(vec![]),
+            column_menu: ContextMenu::new(vec![]),
             project_menu: ContextMenu::new(vec![]),
             project: None,
             recent: project_view::load_recent(),

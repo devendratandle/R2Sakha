@@ -14,7 +14,13 @@ fn data_menu(mb: &mut MenuBuilder, sakha: bool) {
         .item("Load R2 data file (.r2s)…", "", "data.load_r2s")
         .item("R2 datasets…", "", "data.r2_list")
         .item("Select dataset…", "", "data.select");
-    if sakha { m.item("Variable names and types…", "", "data.attributes"); }
+    if sakha {
+        m.item("Variable names and types…", "", "data.attributes")
+            .item("Compute variable…", "", "dataedit.compute")
+            .item("Recode variable…", "", "dataedit.recode")
+            .item("Filter rows…", "", "dataedit.filter")
+            .item("Undo last data change", "", "dataedit.undo");
+    }
 }
 
 fn windows_and_help(mb: &mut MenuBuilder) {

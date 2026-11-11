@@ -1,8 +1,8 @@
 //! The Data menu's dialogs, in both faces, on the lines of Rcmdr's data menu:
 //! a list to choose from (where a new dataset comes from, R2's datasets however
 //! many, the data already in the session), importing a text file, and a
-//! variable's name and type. A loaded dataset is edited only through these
-//! attributes, never cell by cell. Each change is R2 code, kept in the script.
+//! variable's name and type. Each change is R2 code, kept in the script.
+//! Editing the values themselves is `data_edit.rs`.
 
 use std::path::{Path, PathBuf};
 
@@ -21,7 +21,7 @@ use crate::Gui;
 const PREVIEW: usize = 6;
 
 /// A box in the middle of the workspace, over a dimmed background.
-fn dialog_box(area: Rect, cols: f32, rows: f32, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme, title: &str) -> Rect {
+pub(crate) fn dialog_box(area: Rect, cols: f32, rows: f32, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme, title: &str) -> Rect {
     let (cw, lh) = renderer.cell_metrics(theme.fs());
     let (bg, fg) = (theme.window_background, theme.console_output);
     frame.paint_rect(area.x, area.y, area.w, area.h, r2_ui::Color::rgba(0, 0, 0, 120));
@@ -36,7 +36,7 @@ fn dialog_box(area: Rect, cols: f32, rows: f32, frame: &mut Frame, renderer: &mu
 
 /// A one-line text box; the caret is a trailing `_` while it has the keyboard.
 #[allow(clippy::too_many_arguments)]
-fn text_box(r: Rect, s: &str, active: bool, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme) {
+pub(crate) fn text_box(r: Rect, s: &str, active: bool, frame: &mut Frame, renderer: &mut Renderer, theme: &Theme) {
     let (cw, lh) = renderer.cell_metrics(theme.fs());
     let (bg, fg) = (theme.window_background, theme.console_output);
     frame.paint_rect(r.x, r.y, r.w, r.h, mix(bg, fg, if active { 0.16 } else { 0.08 }));
@@ -44,7 +44,7 @@ fn text_box(r: Rect, s: &str, active: bool, frame: &mut Frame, renderer: &mut Re
     text(frame, renderer, r.x + 6.0, r.y + (r.h - lh) / 2.0 + lh * 0.8, &shown, theme.fs(), fg, cw, r.x + r.w - 4.0);
 }
 
-fn typed(buf: &mut String, ev: &InputEvent) {
+pub(crate) fn typed(buf: &mut String, ev: &InputEvent) {
     match *ev {
         InputEvent::Char(c) if !c.is_control() => buf.push(c),
         InputEvent::Key { code: KeyCode::Backspace, pressed: true, .. } => { buf.pop(); }
@@ -237,7 +237,12 @@ impl Gui {
             self.sakha.status = "First load a dataset.".into();
             return;
         }
-        let col = self.sakha.selected.unwrap_or(0);
+        self.open_attributes_at(self.sakha.selected.unwrap_or(0));
+    }
+
+    /// The same, on one variable.
+    pub(crate) fn open_attributes_at(&mut self, col: usize) {
+        if col >= self.sakha.cols.len() { return; }
         let c = &self.sakha.cols[col];
         self.attr_dialog = Some(AttributesDialog { col, name: c.name.clone(), kind: c.kind, message: String::new(),
                                                    rows: vec![], type_rects: vec![], apply: None, close: None });
@@ -278,10 +283,11 @@ impl Gui {
 
     /// Is one of these dialogs open? It then owns the input.
     pub(crate) fn data_dialog_open(&self) -> bool {
-        self.list_dialog.is_some() || self.import_dialog.is_some() || self.attr_dialog.is_some()
+        self.list_dialog.is_some() || self.import_dialog.is_some() || self.attr_dialog.is_some() || self.edit_dialog.is_some()
     }
 
     pub(crate) fn data_dialog_input(&mut self, events: &[InputEvent]) {
+        if self.edit_dialog.is_some() { return self.edit_dialog_input(events); }
         let mouse = self.mouse;
         if let Some(d) = self.list_dialog.as_mut() {
             let mut picked: Option<String> = None;
@@ -378,6 +384,7 @@ impl Gui {
         if let Some(d) = self.import_dialog.as_mut() { paint_import(d, area, frame, renderer, theme); }
         let cols: Vec<(String, Kind)> = self.sakha.cols.iter().map(|c| (c.name.clone(), c.kind)).collect();
         if let Some(d) = self.attr_dialog.as_mut() { paint_attributes(d, &cols, area, frame, renderer, theme); }
+        self.paint_edit_dialog(area, frame, renderer, theme);
     }
 }
 
@@ -467,7 +474,7 @@ fn paint_attributes(d: &mut AttributesDialog, cols: &[(String, Kind)], area: Rec
         d.type_rects.push((r, *t));
     }
     y += lh + 16.0;
-    let note = "The data's values are never edited here. Text that is not a number becomes NA when changed to a number. Every change is kept in the session script.";
+    let note = "Text that is not a number becomes NA when changed to a number. Every change is kept in the session script. To change values, type in the cells of the Data tab.";
     for line in crate::ui::wrap(note, ((b.x + b.w - x - 8.0) / cw) as usize) {
         text(frame, renderer, x, y + lh * 0.8, &line, size, dim, cw, b.x + b.w - 8.0);
         y += lh;

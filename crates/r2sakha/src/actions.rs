@@ -55,6 +55,7 @@ impl Gui {
             "data.select" => self.open_select_dialog(),
             "data.r2_list" => self.open_r2_datasets(),
             "data.attributes" => self.open_attributes(),
+            a if a.starts_with("dataedit.") => self.data_edit_action(&a[9..]),
             "data.import" => {
                 let picked = rfd::FileDialog::new().set_title("Import text file").set_directory(&self.session.cwd)
                     .add_filter("Text data", &["csv", "txt", "tsv", "dat"]).add_filter("All files", &["*"]).pick_file();

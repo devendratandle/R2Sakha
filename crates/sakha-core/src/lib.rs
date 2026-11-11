@@ -9,13 +9,16 @@
 //! * [`tables`] — publishable (APA) tables gathering the same test run on
 //!   different variables, from the numbers R2 returned; HTML and CSV.
 //! * [`gview`] — Gview's editable graphs: plot code whose settings change.
-//! * [`import`] — R2 code for loading data and changing a column's attributes.
+//! * [`edit`] — the Data tab's edits (cells, compute, recode, filter, sort,
+//!   delete) as R2 code.
+//! * [`import`]— R2 code for loading data and changing a column's attributes.
 //!
 //! **Sakha computes nothing itself.** Every number comes from R2 functions
 //! run by `r2 --ide`, so Sakha always agrees with the Console.
 
 pub mod analysis;
 pub mod document;
+pub mod edit;
 pub mod gview;
 pub mod import;
 pub mod layout;

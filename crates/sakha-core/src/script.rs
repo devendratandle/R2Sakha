@@ -38,6 +38,24 @@ impl SessionScript {
         }
     }
 
+    /// Record a change to the data, under a key of its own; the key comes
+    /// back, to take the step out again if R2 refuses it.
+    pub fn record_data(&mut self, comment: &str, code: &[String]) -> String {
+        let mut n = self.steps.len();
+        while self.steps.iter().any(|(k, _, _)| *k == format!("cat:{n}")) { n += 1; }
+        let key = format!("cat:{n}");
+        self.record(&key, comment, code);
+        key
+    }
+
+    pub fn remove(&mut self, key: &str) { self.steps.retain(|(k, _, _)| k != key); }
+
+    /// Take out the latest change to the data, for Undo; its comment comes back.
+    pub fn undo_data(&mut self) -> Option<String> {
+        let i = self.steps.iter().rposition(|(k, _, _)| k.starts_with("cat:"))?;
+        Some(self.steps.remove(i).1)
+    }
+
     pub fn steps(&self) -> usize { self.steps.len() }
 
     /// The parts a `.sakha` file stores: the header, then (key, comment, code).
@@ -94,6 +112,12 @@ mod tests {
         assert!(t.contains("trial <- read.csv(\"t.csv\")\n\n# score: summary\nsummary(trial$score)\nhist(trial$score)"));
         assert!(t.ends_with("# dose as a category\ntrial$dose <- factor(trial$dose)\n"));
         assert_eq!(s.steps(), 2);
+        let a = s.record_data("row 1", &["trial[1, \"x\"] <- 2".into()]);
+        let b = s.record_data("row 2", &["trial[2, \"x\"] <- 3".into()]);
+        s.remove(&a);
+        assert_ne!(s.record_data("row 3", &["x".into()]), b, "a key is never used twice");
+        assert_eq!(s.undo_data().as_deref(), Some("row 3"));
+        assert_eq!(s.data_steps().len(), 2);
         assert!(SessionScript::new("d", "x", None).text().contains("'d' was made in the console"));
     }
 

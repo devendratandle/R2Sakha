@@ -56,6 +56,12 @@ R2 0.4.1 (commit `1356074` on R2's `main`) has items 1–21, except as noted her
 
 22. **Still open: `chisq.test(table(a, b))`.** `table(a, b)` is now two-way, but `chisq.test` tests it as one row of counts ("given probabilities", df = 5, p = 0.347 on the test data). GNU R tests independence (df = 2, p = 0.0498). `chisq.test(matrix(...))` is right, so Sakha keeps writing the matrix out.
 
+## Found while building the Data tab's editing, 2026-11-11
+
+23. **`subset(d, cond)` leaves factor columns unfiltered** and drops the row names. After `mtcars$cyl <- factor(mtcars$cyl)` and `mtcars <- subset(mtcars, mpg > 20)`, `nrow` is 14 but `cyl` still has 32 values, so the data frame is broken. GNU R filters every column and keeps the row names. Ardon Studio writes `d[which(with(d, cond)), ]` instead, which R2 gets right.
+24. **`replace()` is missing** (`object 'replace' not found`).
+25. **`cut()` labels say `-inf` and `inf`**: `(-inf,1.5]`. GNU R writes `(-Inf,1.5]`.
+
 ## Checks
 
 For each item:

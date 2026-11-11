@@ -191,6 +191,59 @@ fn imports_and_column_changes_work_in_r2() {
     assert_eq!(e.call("value", json!({"code": "names(t2)"}), Duration::from_secs(20)).unwrap()["value"]["values"][0], json!("new name"));
 }
 
+/// Every edit the Data tab makes, run in R2.
+#[test]
+fn data_edits_work_in_r2() {
+    use sakha_core::edit::*;
+    let Some(mut e) = session() else { return };
+    let run = |e: &mut Engine, ed: Edit| for code in &ed.code {
+        let r = e.call("eval", json!({ "code": code }), Duration::from_secs(20)).unwrap();
+        assert_eq!(r["error"], json!(false), "{code}: {r}");
+    };
+    let text = |e: &mut Engine, code: &str| -> Vec<String> {
+        e.call("value", json!({ "code": code }), Duration::from_secs(20)).unwrap()["value"]["values"]
+            .as_array().unwrap().iter().map(|v| v.as_str().unwrap_or("NA").to_string()).collect()
+    };
+    run(&mut e, cell("d", 2, "score", Kind::Number, "50").unwrap());
+    run(&mut e, cell("d", 3, "score", Kind::Number, "").unwrap());
+    assert_eq!(ask(&mut e, "d$score[2]"), vec![50.0]);
+    assert_eq!(ask(&mut e, "sum(is.na(d$score))"), vec![1.0]);
+    run(&mut e, cell("d", 1, "three", Kind::Text, "q").unwrap());
+    assert_eq!(text(&mut e, "d$three[1]"), ["q"]);
+    // a category: a level it has, then a new one
+    run(&mut e, cell("d", 1, "grp", Kind::Category, "b").unwrap());
+    run(&mut e, cell("d", 2, "grp", Kind::Category, "c").unwrap());
+    assert_eq!(text(&mut e, "as.character(d$grp[1:3])"), ["b", "c", "a"]);
+    assert_eq!(text(&mut e, "levels(d$grp)"), ["a", "b", "c"]);
+    run(&mut e, cell("d", 2, "grp", Kind::Category, "").unwrap());
+    assert_eq!(ask(&mut e, "sum(is.na(d$grp))"), vec![1.0]);
+
+    run(&mut e, compute("d", "twice", "before * 2 + flag").unwrap());
+    assert_eq!(ask(&mut e, "d$twice[1:2]"), vec![10.0, 13.0]);
+    run(&mut e, recode("d", "before", Kind::Number, "band", "5.5, 7").unwrap());
+    assert_eq!(ask(&mut e, "as.numeric(table(d$band))"), vec![2.0, 6.0, 2.0]);
+    run(&mut e, recode("d", "three", Kind::Text, "two", "x = y, y = z").unwrap());
+    assert_eq!(text(&mut e, "as.character(d$two[2:4])"), ["z", "z", "y"]);
+    run(&mut e, sort("d", "before", true));
+    assert_eq!(ask(&mut e, "d$before[c(1, 10)]"), vec![8.0, 5.0]);
+    run(&mut e, filter("d", "before >= 6 & flag == 1").unwrap());
+    assert_eq!(ask(&mut e, "c(nrow(d), length(d$grp), length(d$band))"), vec![4.0, 4.0, 4.0], "categories are filtered too");
+    run(&mut e, delete_row("d", 1));
+    assert_eq!(ask(&mut e, "nrow(d)"), vec![3.0]);
+    run(&mut e, add_row("d"));
+    assert_eq!(ask(&mut e, "c(nrow(d), sum(is.na(d$before)))"), vec![4.0, 1.0]);
+    run(&mut e, delete_variable("d", "twice"));
+    assert_eq!(ask(&mut e, "ncol(d)"), vec![7.0]);
+
+    // Undo loads the data again: one of R2's own datasets comes back whole
+    run(&mut e, filter("mtcars", "cyl == 4").unwrap());
+    assert_eq!(ask(&mut e, "nrow(mtcars)"), vec![11.0]);
+    for code in sakha_core::edit::reload("mtcars", "mtcars <- mtcars") {
+        assert_eq!(e.call("eval", json!({ "code": code }), Duration::from_secs(20)).unwrap()["error"], json!(false), "{code}");
+    }
+    assert_eq!(ask(&mut e, "nrow(mtcars)"), vec![32.0]);
+}
+
 /// The R2 datasets on the Data menu: GNU R's numbers.
 #[test]
 fn the_datasets_on_the_menu_match_gnu_r() {

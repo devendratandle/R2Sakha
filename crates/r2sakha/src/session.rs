@@ -47,6 +47,8 @@ pub(crate) enum After {
     ViewData { df: String },
     /// A variable's name or type changed: say so if R2 refused.
     ColumnChange,
+    /// An edit in the Data tab: its script step goes if R2 refuses it.
+    DataEdit { key: String },
     /// An R2 data file was loaded from Sakha: choose among what it held.
     ChooseInSakha { load: String },
 }
@@ -58,12 +60,14 @@ pub(crate) struct Session {
     pub(crate) pending: HashMap<u64, Req>,
     /// R2 quit on the user's own `q(...)`: close the IDE too.
     pub(crate) exit_now: bool,
+    /// What R2 last wrote as an error for a console line, for a dialog to show.
+    pub(crate) last_err: String,
     pub(crate) version: String,
 }
 
 impl Session {
     pub(crate) fn new(cwd: PathBuf) -> Session {
-        Session { engine: None, cwd, pending: HashMap::new(), exit_now: false, version: String::new() }
+        Session { engine: None, cwd, pending: HashMap::new(), exit_now: false, version: String::new(), last_err: String::new() }
     }
 
     /// Is code the user asked for running (not a quiet query)?
@@ -158,7 +162,10 @@ impl Gui {
             match msg {
                 Msg::Stream { id, text, err } => match self.session.pending.get(&id) {
                     Some(Req::Analysis { rid }) => { let rid = *rid; self.result_output(rid, &text, err); }
-                    Some(Req::Console { .. }) => self.buffer.push_stream(&text, err),
+                    Some(Req::Console { .. }) => {
+                        self.buffer.push_stream(&text, err);
+                        if err { self.session.last_err = text; }
+                    }
                     Some(Req::DatasetList) => self.dataset_list_text(&text),
                     Some(Req::GviewRun { doc, .. }) if err => { let doc = *doc; self.gview_error_text(doc, &text); }
                     _ => {}
@@ -191,6 +198,7 @@ impl Gui {
                     Some(After::ColumnChange) if failed =>
                         self.sakha.status = "R2 could not make that change; the Console says why.".into(),
                     Some(After::ColumnChange) => if let Some(d) = self.attr_dialog.as_mut() { d.applied(); },
+                    Some(After::DataEdit { key }) => self.data_edit_done(&key, failed),
                     Some(After::ChooseInSakha { load }) if !failed => {
                         self.sakha.pending_load = Some(load);
                         self.sakha.choosing = true;
@@ -199,6 +207,7 @@ impl Gui {
                         self.sakha.status = "Could not load that file; the Console says why.".into(),
                     _ => {}
                 }
+                self.session.last_err.clear();
             }
             Req::Env => if ok { self.env_reply(body); },
             Req::Getwd => {

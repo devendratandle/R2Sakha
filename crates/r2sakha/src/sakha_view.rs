@@ -95,7 +95,7 @@ impl SakhaResult {
 
 /// Click targets from the last paint.
 #[derive(Default)]
-struct Hits {
+pub(crate) struct Hits {
     cards: Vec<(Rect, usize)>,
     list: Vec<(Rect, usize)>,
     faces: Vec<Rect>,
@@ -116,7 +116,7 @@ struct Hits {
     open_doc: Option<Rect>,
     recover: Option<Rect>,
     /// Welcome-screen rows, each with the action it runs.
-    links: Vec<(Rect, String)>,
+    pub(crate) links: Vec<(Rect, String)>,
 }
 
 pub(crate) struct Sakha {
@@ -156,7 +156,7 @@ pub(crate) struct Sakha {
     pub(crate) data_uid: Option<u64>,
     /// The welcome screen, to choose or load a dataset.
     pub(crate) choosing: bool,
-    hits: Hits,
+    pub(crate) hits: Hits,
 }
 
 impl Default for Sakha {
@@ -542,7 +542,7 @@ impl Gui {
             }
         }
         if self.sakha.face == Face::Data {
-            if let Some(v) = self.sakha.data_uid.and_then(|u| self.views.get_mut(&u)) { v.input(events, true, true); }
+            self.data_face_input(events);
         }
         if queued.is_some() { self.queued = queued; }
         if let Some(r) = open_dataset { self.open_dataset_menu(r); }
@@ -599,7 +599,7 @@ impl Gui {
             let w = (self.sakha.status.chars().count() + 1) as f32 * cw;
             let color = if self.sakha.status.starts_with("Could not") { theme.console_error } else { dim };
             text(frame, renderer, right - w, c.y + 5.0 + lh * 0.8, &self.sakha.status, size, color, cw, right);
-            right -= w;
+            right -= w + 2.0 * cw;
         }
         // the dataset button leads the line, as the data leads Sakha
         let label = format!("Dataset: {df} ▾");
@@ -665,12 +665,7 @@ impl Gui {
                 if let Some(i) = self.sakha.selected { self.paint_detail(i, main, strip, area, frame, renderer, theme); }
                 else { self.paint_cards(main, frame, renderer, theme); }
             }
-            Face::Data => {
-                if let Some(uid) = self.sakha.data_uid {
-                    if let Some(v) = self.views.get_mut(&uid) { v.paint(main, frame, renderer, theme); }
-                    self.fetch_view_pages(uid);
-                }
-            }
+            Face::Data => self.paint_data_face(main, frame, renderer, theme),
             Face::Results => self.paint_results(main, frame, renderer, theme),
             Face::Tables => self.paint_tables(main, frame, renderer, theme),
         }

@@ -48,6 +48,10 @@ pub(crate) fn inject(ctx: &mut FrameCtx) {
         "ctrls" => ev.extend(key(KeyCode::KeyS, ctrl)),
         "esc" => ev.extend(key(KeyCode::Escape, Mods::default())),
         "backspace" => ev.extend(key(KeyCode::Backspace, Mods::default())),
+        "tab" => ev.extend(key(KeyCode::Tab, Mods::default())),
+        "delete" => ev.extend(key(KeyCode::Delete, Mods::default())),
+        "down" => ev.extend(key(KeyCode::Down, Mods::default())),
+        "right" => ev.extend(key(KeyCode::Right, Mods::default())),
         "wheel" => ev.push(InputEvent::Scroll { dy: rest.trim().parse().unwrap_or(0.0) }),
         "move" => {
             let mut n = rest.split_whitespace().filter_map(|s| s.parse::<f32>().ok());
