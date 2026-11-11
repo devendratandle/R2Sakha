@@ -92,10 +92,12 @@ pub fn numbers_code(id: &str, df: &str, cols: &[ColumnProfile], picks: &[Vec<usi
         // F, df between, df within, p, SS between, SS total
         "anova" => format!("{{ {T} <- summary(aov({} ~ factor({}), data = {df})); \
                             c({T}$f.statistic, {T}$df.between, {T}$df.within, {T}$p.value, {T}$ss.between, {T}$ss.total) }}", n(0)?, n(1)?),
-        // r, df, p, t, n
+        // r, df, p, t, n. The df is n - 2, counted here: R2 has named that
+        // field both `df` and (as R does) `parameter`, and this reads with either.
         "cor" => {
             let (x, y) = (c(0)?, c(1)?);
-            format!("{{ {T} <- cor.test({x}, {y}); c({T}$estimate, {T}$df, {T}$p.value, {T}$statistic, sum(!is.na({x}) & !is.na({y}))) }}")
+            format!("{{ {T} <- cor.test({x}, {y}); {M} <- sum(!is.na({x}) & !is.na({y})); \
+                     c({T}$estimate, {M} - 2, {T}$p.value, {T}$statistic, {M}) }}")
         }
         // chi-square, df, p, N, the smaller number of categories
         "chisq" => {

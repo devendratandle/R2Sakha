@@ -402,14 +402,10 @@ impl Gui {
     }
 
     /// An R2 data file (`.r2s`): it may hold several variables, so the user
-    /// chooses among them. R2 currently loses factor columns in save and load,
-    /// so the Console says so each time.
+    /// chooses among them.
     pub(crate) fn load_r2_file(&mut self, path: &std::path::Path) {
         let p = sakha_core::document::r_path(path.strip_prefix(&self.session.cwd).unwrap_or(path));
         let line = format!("load(\"{p}\")");
-        let note = "Note: R2's save() and load() currently lose factor columns. Check the variables; a CSV keeps them.";
-        self.buffer.push_error(note);
-        if self.sakha_mode { self.sakha.status = note.into(); }
         let after = self.sakha_mode.then(|| After::ChooseInSakha { load: line.clone() });
         self.run_queue.push_back((line, after));
     }

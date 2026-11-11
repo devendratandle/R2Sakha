@@ -171,7 +171,9 @@ impl Analysis {
             "anova" => {
                 let call = format!("aov({} ~ {}, data = {df})", n(0)?, n(1)?);
                 (format!("One-way ANOVA: {} by {}", shown(0)?, shown(1)?),
-                 vec![call.clone()], Some(format!("anova(lm({} ~ factor({}), data = {df}))$p.value", n(0)?, n(1)?)))
+                 // summary(aov) keeps `p.value` across R2 versions; anova(lm)'s
+                 // table is now R's, with the p under `Pr(>F)`
+                 vec![call.clone()], Some(format!("summary(aov({} ~ factor({}), data = {df}))$p.value", n(0)?, n(1)?)))
             }
             "cor" => {
                 let call = format!("cor.test({}, {})", c(0)?, c(1)?);

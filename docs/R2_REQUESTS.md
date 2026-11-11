@@ -50,6 +50,12 @@ Ardon Studio found the gaps below while running R2 through `r2 --ide`. Each item
     *Still differs:* an unclosed string (`s <- "abc`) is an error in `--ide` ("unterminated string"), where R and R2's own console would ask for more with `+`. It would be better reported as `incomplete` too.
 21. **Features in `hello`.** Add `"features": ["banner", "console", ...]`, and raise `PROTOCOL` only for changes that break existing messages. Ardon Studio uses a feature only when R2 lists it. Otherwise it falls back to what it does today, or tells the user to update R2. This lets either program be updated without the other.
 
+## Status, 2026-11-11
+
+R2 0.4.1 (commit `1356074` on R2's `main`) has items 1–21, except as noted here. Ardon Studio's tests pass against it.
+
+22. **Still open: `chisq.test(table(a, b))`.** `table(a, b)` is now two-way, but `chisq.test` tests it as one row of counts ("given probabilities", df = 5, p = 0.347 on the test data). GNU R tests independence (df = 2, p = 0.0498). `chisq.test(matrix(...))` is right, so Sakha keeps writing the matrix out.
+
 ## Checks
 
 For each item:

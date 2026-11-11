@@ -203,16 +203,18 @@ fn the_datasets_on_the_menu_match_gnu_r() {
     close(ask(&mut e, "sd(mtcars$wt)")[0], 0.978457442989697);
 }
 
-/// When one of these fails R2 has changed: Sakha can drop its workaround.
+/// What R2 0.4.1 (2026-11-11) put right, which Ardon Studio now relies on,
+/// and the one gap left. When the gap's line fails R2 has changed: Sakha's
+/// chi-square can use `table()` instead of writing the matrix out.
 #[test]
-fn the_r2_gaps_sakha_works_around_are_still_there() {
+fn r2_matches_gnu_r_where_sakha_once_worked_around_it() {
     let Some(mut e) = session() else { return };
-    // GNU R: p = 0.0497870683678639 from the 2 x 3 table. R2 keeps only the first factor.
-    assert_eq!(ask(&mut e, "chisq.test(table(d$grp, d$three))$p.value"), vec![1.0]);
-    // GNU R: p = 1 (exact). R2 differs, so Mann-Whitney stays off the menu.
-    close(ask(&mut e, r#"wilcox.test(d$score[d$grp == "a"], d$score[d$grp == "b"])$p.value"#)[0], 0.9168149485280885);
-    // GNU R keeps every column. R2's save() and load() lose factor columns,
-    // so loading an R2 data file warns; d has 5 columns, one of them a factor.
+    // GNU R: p = 0.0497870683678639 from the 2 x 3 table. R2 now builds the
+    // two-way table, but still tests it as one row of six counts (df = 5).
+    close(ask(&mut e, "chisq.test(table(d$grp, d$three))$p.value")[0], 0.34710506828171533);
+    // GNU R: p = 1 (exact), and now R2's too.
+    close(ask(&mut e, r#"wilcox.test(d$score[d$grp == "a"], d$score[d$grp == "b"])$p.value"#)[0], 1.0);
+    // save() and load() keep every column, the factor as a factor.
     let file = std::env::temp_dir().join("sakha_gap_test.r2s");
     let path = file.to_string_lossy().replace('\\', "/");
     let run = |e: &mut Engine, code: String| e.call("eval", json!({ "code": code }), Duration::from_secs(20)).unwrap();
@@ -220,8 +222,8 @@ fn the_r2_gaps_sakha_works_around_are_still_there() {
     run(&mut e, "rm(d)".to_string());
     run(&mut e, format!("load(\"{path}\")"));
     let _ = std::fs::remove_file(&file);
-    assert_eq!(ask(&mut e, "ncol(d)"), vec![4.0]);
-    // GNU R draws these. r2 --ide replies without them, so the app asks save.plot().
+    assert_eq!(ask(&mut e, "c(ncol(d), is.factor(d$grp))"), vec![5.0, 1.0]);
+    // a reply's plot is the whole picture, with what was added after the first call
     let id = e.eval("plot(d$score, d$before)\nabline(h = 6, lty = 2)");
     let end = std::time::Instant::now() + Duration::from_secs(20);
     let mut reply = None;
@@ -230,7 +232,7 @@ fn the_r2_gaps_sakha_works_around_are_still_there() {
         std::thread::sleep(Duration::from_millis(5));
     }
     let plot = reply.unwrap()["plot"].as_str().unwrap_or("").to_string();
-    assert!(plot.contains("<svg") && !plot.contains("stroke-dasharray"), "--ide now sends overlays: drop ask_whole_plot");
+    assert!(plot.contains("<svg") && plot.contains("stroke-dasharray"), "the reply's plot has the dashed line");
 }
 
 #[test]
