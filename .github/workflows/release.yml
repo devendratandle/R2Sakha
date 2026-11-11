@@ -52,8 +52,8 @@ jobs:
             os: windows-latest
             r2_asset: r2-windows-x86_64.zip
           - name: linux
-            os: ubuntu-24.04      # the system Ardon-R2 builds its Linux r2 on (glibc 2.39)
-            r2_asset: r2-linux-x86_64.tar.gz
+            os: ubuntu-22.04      # an older glibc (2.35), so it runs on more systems
+            r2_asset: source      # Ardon-R2's own Linux r2 needs glibc 2.43
           - name: macos
             os: macos-latest      # Apple silicon
             r2_asset: r2-macos-arm64.tar.gz
@@ -86,7 +86,28 @@ jobs:
             exit 1
           fi
 
+      # Linux: Ardon-R2's released r2 is built on a very new system and will
+      # not start on most others, so build the same tag here instead.
+      - name: Check out Ardon-R2 ${{ env.R2_TAG }} (Linux)
+        if: matrix.r2_asset == 'source'
+        uses: actions/checkout@v4
+        with:
+          repository: devendratandle/Ardon-R2
+          ref: ${{ env.R2_TAG }}
+          path: ardon-r2
+
+      - name: Build r2 from source (Linux)
+        if: matrix.r2_asset == 'source'
+        run: |
+          ( cd ardon-r2 && cargo build --release -p r2-repl --bin r2 )
+          mkdir -p installer/bundle
+          cp ardon-r2/target/release/r2 installer/bundle/r2
+          chmod +x installer/bundle/r2
+          rm -rf ardon-r2
+          echo "ARDON_STUDIO_R2=$PWD/installer/bundle/r2" >> "$GITHUB_ENV"
+
       - name: Fetch Ardon-R2 ${{ env.R2_TAG }}
+        if: matrix.r2_asset != 'source'
         run: |
           mkdir -p installer/bundle
           curl -fL --retry 3 -o r2-asset "$R2_RELEASES/$R2_TAG/${{ matrix.r2_asset }}"
@@ -153,7 +174,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Installed-Size: $SIZE
-          Depends: libc6 (>= 2.39), libgcc-s1, libxkbcommon0, libxkbcommon-x11-0
+          Depends: libc6 (>= 2.35), libgcc-s1, libxkbcommon0, libxkbcommon-x11-0
           Recommends: xdg-desktop-portal, libvulkan1, mesa-vulkan-drivers
           Maintainer: Devendra Tandale <noreply@users.noreply.github.com>
           Homepage: https://github.com/devendratandle/R2Sakha
