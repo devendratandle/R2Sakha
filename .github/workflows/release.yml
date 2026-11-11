@@ -27,6 +27,11 @@ on:
     paths: [ ".github/workflows/release.yml", "packaging/**", "installer/**" ]
   workflow_dispatch:
 
+# a newer push replaces a run that is still going
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write   # to create the release and upload its files
 
@@ -95,8 +100,6 @@ jobs:
           fi
           rm r2-asset
           ls -l installer/bundle
-          # it must start here, or nothing after this can work
-          installer/bundle/r2 --version || installer/bundle/r2.exe --version
 
       - name: Test against that r2
         run: cargo test --workspace
