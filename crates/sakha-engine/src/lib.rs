@@ -47,6 +47,32 @@ pub enum Msg {
 pub struct Hello {
     pub r2_version: String,
     pub protocol: u64,
+    /// R2's own startup banner (`r2-console`'s `banner_lines`), shown
+    /// unchanged; empty from an R2 that does not send it.
+    pub banner: Vec<String>,
+    /// R2's prompts (fresh input, continuation), when it names them.
+    pub prompts: Option<(String, String)>,
+    /// What this R2 can do beyond protocol 1: Ardon Studio uses a feature
+    /// only when R2 lists it, so either program can be updated alone.
+    pub features: Vec<String>,
+}
+
+impl Hello {
+    pub fn from_reply(r: &Value) -> Hello {
+        let strings = |v: &Value| -> Vec<String> {
+            v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default()
+        };
+        let p = &r["prompts"];
+        Hello {
+            r2_version: r["r2"].as_str().unwrap_or("?").to_string(),
+            protocol: r["protocol"].as_u64().unwrap_or(0),
+            banner: strings(&r["banner"]),
+            prompts: p["main"].as_str().zip(p["continue"].as_str()).map(|(a, b)| (a.to_string(), b.to_string())),
+            features: strings(&r["features"]),
+        }
+    }
+
+    pub fn has(&self, feature: &str) -> bool { self.features.iter().any(|f| f == feature) }
 }
 
 pub struct Engine {
@@ -91,10 +117,7 @@ impl Engine {
         let mut e = Engine::start(exe, cwd)?;
         let r = e.call("hello", json!({}), Duration::from_secs(20))
             .map_err(|m| format!("{} did not answer as an R2 engine ({m}); it needs Ardon-R2 with `r2 --ide`", exe.display()))?;
-        let hello = Hello {
-            r2_version: r["r2"].as_str().unwrap_or("?").to_string(),
-            protocol: r["protocol"].as_u64().unwrap_or(0),
-        };
+        let hello = Hello::from_reply(&r);
         if hello.protocol != PROTOCOL {
             return Err(format!("{} speaks IDE protocol {}, Ardon Studio needs {PROTOCOL}", exe.display(), hello.protocol));
         }
@@ -205,6 +228,17 @@ pub fn find_r2() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hello_brings_r2s_banner_prompts_and_features_when_it_has_them() {
+        let old = Hello::from_reply(&json!({"ok": true, "r2": "0.4.1", "protocol": 1}));
+        assert!(old.banner.is_empty() && old.prompts.is_none() && !old.has("banner"));
+        let new = Hello::from_reply(&json!({"ok": true, "r2": "0.4.2", "protocol": 1,
+            "banner": ["Ardon-R2 0.4.2", "Pure Rust."], "prompts": {"main": "R2>", "continue": "+"}, "features": ["banner"]}));
+        assert_eq!(new.banner, ["Ardon-R2 0.4.2", "Pure Rust."]);
+        assert_eq!(new.prompts, Some(("R2>".into(), "+".into())));
+        assert!(new.has("banner"));
+    }
 
     #[test]
     fn lines_become_messages() {

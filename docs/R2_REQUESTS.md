@@ -41,6 +41,15 @@ Ardon Studio found the gaps below while running R2 through `r2 --ide`. Each item
 17. **`wilcox.test`** gives a different p-value from GNU R, so Mann-Whitney is off Sakha's menu.
 18. **The built-in `airquality`** has 30 rows; GNU R's has 153.
 
+## For Pro's console (R2's own console experience)
+
+`r2-console` is the single source of truth for how R2's console behaves: the banner (`banner_lines`), the `R2>` and `+` prompts, and when a statement is complete (`ConsoleBuffer`, `is_incomplete`). `--ide` mode does not pass any of it on, so Ardon Studio keeps its own copy (`console.rs`) and writes its own banner. These items make `--ide` one more frontend of `r2-console`, as R2Gui is:
+
+19. **Banner and prompts in `hello`.** Add `"banner": banner_lines(version)` and `"prompts": {"main": "R2>", "continue": "+"}`. Pro then prints R2's banner verbatim, followed by Ardon Studio's single hint line, as the comment on `banner_lines` allows.
+20. **Console input decided by R2.** Already done, no change needed: `eval` replies `"incomplete": true` for an unfinished statement. Pro now sends every line to R2 and shows `+` when R2 says so. It no longer counts brackets itself.
+    *Still differs:* an unclosed string (`s <- "abc`) is an error in `--ide` ("unterminated string"), where R and R2's own console would ask for more with `+`. It would be better reported as `incomplete` too.
+21. **Features in `hello`.** Add `"features": ["banner", "console", ...]`, and raise `PROTOCOL` only for changes that break existing messages. Ardon Studio uses a feature only when R2 lists it. Otherwise it falls back to what it does today, or tells the user to update R2. This lets either program be updated without the other.
+
 ## Checks
 
 For each item:

@@ -27,8 +27,6 @@ pub struct ConsoleLine {
 pub enum SubmitAction {
     /// Expression complete; evaluate this source (multi-line OK).
     Submit(String),
-    /// Expression still open (unbalanced brackets); next prompt is `+`.
-    Continue,
     /// Blank submission — emit a fresh prompt, do nothing else.
     Empty,
 }
@@ -44,6 +42,8 @@ pub struct ConsoleBuffer {
     /// The last line came from a stream chunk without a final newline:
     /// the next chunk of the same kind continues it.
     open_line: Option<LineKind>,
+    /// (fresh input, continuation)
+    prompts: (String, String),
 }
 
 impl Default for ConsoleBuffer {
@@ -59,16 +59,21 @@ impl ConsoleBuffer {
             history_cursor: None,
             max_lines: 10_000,
             open_line: None,
+            prompts: ("R2>".into(), "+".into()),
         }
     }
 
     pub fn transcript(&self) -> &[ConsoleLine] { &self.transcript }
     pub fn history(&self) -> &[String] { &self.history }
 
-    /// `R2>` for fresh input, `+` mid-continuation.
-    pub fn current_prompt(&self) -> &'static str {
-        if self.continuation.is_empty() { "R2>" } else { "+" }
+    /// R2's prompts: `R2>` for fresh input, `+` mid-continuation, unless
+    /// R2 names its own in `hello`.
+    pub fn current_prompt(&self) -> &str {
+        if self.continuation.is_empty() { &self.prompts.0 } else { &self.prompts.1 }
     }
+
+    /// The prompts R2 uses.
+    pub fn set_prompts(&mut self, main: &str, more: &str) { self.prompts = (main.to_string(), more.to_string()); }
 
     /// Esc: drop a half-typed multi-line expression, as R does.
     pub fn cancel_continuation(&mut self) {
@@ -86,7 +91,7 @@ impl ConsoleBuffer {
     /// The user pressed Enter on `line`.
     pub fn submit_line(&mut self, line: String) -> SubmitAction {
         let kind = if self.continuation.is_empty() { LineKind::Input } else { LineKind::Continuation };
-        let prompt = self.current_prompt();
+        let prompt = self.current_prompt().to_string();
         self.push_line(ConsoleLine { kind, text: format!("{} {}", prompt, line.trim_end()) });
 
         if line.trim().is_empty() {
@@ -97,13 +102,13 @@ impl ConsoleBuffer {
         if !self.continuation.is_empty() { self.continuation.push('\n'); }
         self.continuation.push_str(&line);
 
-        if !is_incomplete(&self.continuation) {
-            let src = std::mem::take(&mut self.continuation);
-            self.push_history(src.clone());
-            self.history_cursor = None;
-            return SubmitAction::Submit(src);
-        }
-        SubmitAction::Continue
+        // R2's own parser decides whether the statement is complete: an
+        // unfinished one comes back `incomplete`, and `resume_continuation`
+        // asks for more, as R2's console does.
+        let src = std::mem::take(&mut self.continuation);
+        self.push_history(src.clone());
+        self.history_cursor = None;
+        SubmitAction::Submit(src)
     }
 
     /// A chunk of R2's printed output, as it arrives.
@@ -186,25 +191,6 @@ impl ConsoleBuffer {
     }
 }
 
-/// Bracket balance for multi-line input, ignoring strings and comments.
-pub fn is_incomplete(s: &str) -> bool {
-    let (mut p, mut b, mut k) = (0i32, 0i32, 0i32);
-    let (mut in_str, mut in_comment, mut q) = (false, false, ' ');
-    for ch in s.chars() {
-        if in_comment { if ch == '\n' { in_comment = false; } continue; }
-        if in_str { if ch == q { in_str = false; } continue; }
-        match ch {
-            '"' | '\'' => { in_str = true; q = ch; }
-            '#' => in_comment = true,
-            '(' => p += 1, ')' => p -= 1,
-            '{' => b += 1, '}' => b -= 1,
-            '[' => k += 1, ']' => k -= 1,
-            _ => {}
-        }
-    }
-    p > 0 || b > 0 || k > 0
-}
-
 /// What a complete statement from the console means to the IDE.
 #[derive(Debug, PartialEq)]
 pub enum Typed {
@@ -268,7 +254,9 @@ mod tests {
     #[test]
     fn continuation_and_history() {
         let mut b = ConsoleBuffer::new();
-        assert!(matches!(b.submit_line("for (i in 1:3) {".into()), SubmitAction::Continue));
+        // R2 answers `incomplete`: the line comes back for more
+        let SubmitAction::Submit(src) = b.submit_line("for (i in 1:3) {".into()) else { panic!() };
+        b.resume_continuation(&src);
         assert_eq!(b.current_prompt(), "+");
         match b.submit_line("}".into()) {
             SubmitAction::Submit(s) => assert_eq!(s, "for (i in 1:3) {\n}"),
@@ -306,9 +294,12 @@ mod tests {
     }
 
     #[test]
-    fn brackets_strings_comments_and_quit() {
-        assert!(is_incomplete("c(\n  1, # )\n  2,"));
-        assert!(!is_incomplete("x <- '{'  # {"));
+    fn r2_names_the_prompts() {
+        let mut b = ConsoleBuffer::new();
+        b.set_prompts(">>", "..");
+        assert_eq!(b.current_prompt(), ">>");
+        b.submit_line("1".into());
+        assert_eq!(texts(&b)[0].1, ">> 1");
     }
 
     #[test]

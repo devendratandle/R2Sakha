@@ -156,9 +156,8 @@ struct Gui {
 
 impl Gui {
     fn new(cwd: std::path::PathBuf) -> Result<Gui, String> {
-        let mut buffer = ConsoleBuffer::new();
-        buffer.push_banner(&format!("Ardon Studio {}: Pro for scripts, Sakha for menus (switch at top right).", env!("CARGO_PKG_VERSION")));
-        buffer.push_banner("Ctrl+Enter runs the script line. Esc stops a running computation. q() quits.");
+        // the banner is R2's own, shown once R2 has said hello
+        let buffer = ConsoleBuffer::new();
 
         // The panes' bounds are set every frame (`apply_studio`).
         let mut mdi = MdiHost::new();

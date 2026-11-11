@@ -100,9 +100,18 @@ impl Gui {
         };
         match Engine::connect(&exe, &self.session.cwd) {
             Ok((engine, hello)) => {
+                // R2's banner as R2 writes it, then Ardon Studio's one hint
+                // line, as r2-console allows any frontend to add
+                if hello.banner.is_empty() {
+                    self.buffer.push_banner(&format!("Ardon-R2 {} ({})", hello.r2_version, exe.display()));
+                } else {
+                    for l in &hello.banner { self.buffer.push_banner(l); }
+                }
                 self.buffer.push_banner(&format!(
-                    "Engine: Ardon-R2 {} ({})", hello.r2_version, exe.display()));
+                    "Ardon Studio {}: Pro for scripts, Sakha for menus (top right). Ctrl+Enter runs a line; Esc stops.",
+                    env!("CARGO_PKG_VERSION")));
                 self.buffer.push_banner("");
+                if let Some((main, more)) = &hello.prompts { self.buffer.set_prompts(main, more); }
                 self.session.version = hello.r2_version;
                 self.session.engine = Some(engine);
                 self.refresh_session_panes();
