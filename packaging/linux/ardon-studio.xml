@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-sakha">
+    <comment>Sakha analysis</comment>
+    <glob pattern="*.sakha"/>
+  </mime-type>
+  <mime-type type="application/x-r2proj">
+    <comment>Ardon Studio project</comment>
+    <glob pattern="*.r2proj"/>
+  </mime-type>
+</mime-info>

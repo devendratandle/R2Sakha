@@ -13,7 +13,7 @@ members = [
 # RStudio drives R. r2-ui is Ardon Studio's own copy of the framework.
 [workspace.package]
 # One version for Ardon Studio and its two sections, Pro and Sakha.
-version = "0.0.1"
+version = "0.0.2"
 
 [profile.release]
 strip = "symbols"

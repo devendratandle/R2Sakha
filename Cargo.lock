@@ -2048,11 +2048,11 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "r2-editor"
-version = "0.0.1"
+version = "0.0.2"
 
 [[package]]
 name = "r2-ui"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "arboard",
  "bytemuck",
@@ -2068,7 +2068,7 @@ dependencies = [
 
 [[package]]
 name = "r2sakha"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "image",
  "r2-editor",
@@ -2264,14 +2264,14 @@ dependencies = [
 
 [[package]]
 name = "sakha-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "sakha-engine",
 ]
 
 [[package]]
 name = "sakha-engine"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "serde_json",
 ]

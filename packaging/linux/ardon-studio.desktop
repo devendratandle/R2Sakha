@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Ardon Studio
+GenericName=Statistics IDE
+Comment=The IDE for Ardon-R2, with Sakha's menu-driven statistics
+Exec=/opt/ardon-studio/ArdonStudio %f
+Icon=ardon-studio
+Terminal=false
+Categories=Science;Math;Development;
+MimeType=application/x-sakha;application/x-r2proj;
+Keywords=R;R2;statistics;data;

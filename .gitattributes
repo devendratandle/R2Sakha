@@ -1,0 +1,5 @@
+# scripts and desktop files must keep Unix line ends on every system
+*.sh text eol=lf
+*.desktop text eol=lf
+packaging/** text eol=lf
+.github/** text eol=lf

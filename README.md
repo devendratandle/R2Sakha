@@ -113,11 +113,21 @@ factor levels (`levels<-`).
 
 ## Install
 
-Run `ArdonStudio-Setup-<version>.exe`. It installs for your user account, with no
-admin rights, and includes an `r2.exe` with `--ide` beside `ArdonStudio.exe`, so it
-runs at once. It can associate `.sakha` and `.r2proj` files with Ardon Studio.
+Download the file for your system from the
+[latest release](https://github.com/devendratandle/R2Sakha/releases/latest). Each
+one includes Ardon-R2 (`r2` with `--ide`), so Ardon Studio runs at once.
 
-To build the installer: `cargo build --release -p r2sakha`, copy an `r2.exe` built
+| System | File | How |
+|---|---|---|
+| Windows 10/11 (x64) | `ArdonStudio-Setup-<version>.exe` | Run it. It installs for your user account, with no admin rights, and can associate `.sakha` and `.r2proj` files with Ardon Studio. |
+| Debian, Ubuntu (x86_64) | `ardon-studio_<version>_amd64.deb` | `sudo apt install ./ardon-studio_<version>_amd64.deb` |
+| Other Linux (x86_64) | `ArdonStudio-<version>-linux-x86_64.tar.gz` | Unpack it and run `./install.sh` (for you only) or `sudo ./install.sh` (for everyone). |
+| macOS 11+ (Apple silicon) | `ArdonStudio-<version>-macos-arm64.dmg` | Open it and drag Ardon Studio onto Applications. The app is not signed by Apple yet; `README-FIRST.txt` in the disk image says how to open it the first time. |
+
+The Linux and macOS builds are new in 0.0.2 and less tested than the Windows one.
+
+The files are built by `.github/workflows/release.yml` when a version tag is pushed.
+To build the Windows installer by hand: `cargo build --release -p r2sakha`, copy an `r2.exe` built
 with `--ide` to `installer\bundle\`, then compile `installer\ArdonStudio.iss` with
 Inno Setup 6.
 

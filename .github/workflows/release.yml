@@ -1,0 +1,208 @@
+# Ardon Studio: build the installable for Windows, Linux and macOS.
+#
+# Runs when a version tag (v*) is pushed, and attaches the files to the
+# GitHub release for that tag:
+#   ArdonStudio-Setup-<version>.exe          Windows installer (Inno Setup)
+#   ardon-studio_<version>_amd64.deb         Debian and Ubuntu package
+#   ArdonStudio-<version>-linux-x86_64.tar.gz  any Linux, with install.sh
+#   ArdonStudio-<version>-macos-arm64.dmg    macOS disk image (Apple silicon)
+#
+# It also runs by hand (workflow_dispatch) and when this file or packaging/
+# changes on main. Those runs build, test and package, and keep the files
+# as workflow artifacts, without making a release.
+#
+# Ardon Studio runs Ardon-R2 as its engine (`r2 --ide`), so each package
+# carries the `r2` of the Ardon-R2 release named in R2_TAG. The tests run
+# against that same `r2` before anything is packaged.
+#
+# The macOS app is not signed with an Apple developer certificate; the
+# README-FIRST.txt in the disk image says how to open it the first time.
+
+name: release
+
+on:
+  push:
+    tags: [ "v*" ]
+    branches: [ main ]
+    paths: [ ".github/workflows/release.yml", "packaging/**", "installer/**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to create the release and upload its files
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  R2_TAG: v0.4.1
+  R2_RELEASES: https://github.com/devendratandle/Ardon-R2/releases/download
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            r2_asset: r2-windows-x86_64.zip
+          - name: linux
+            os: ubuntu-22.04      # an older glibc, so it runs on more systems
+            r2_asset: r2-linux-x86_64.tar.gz
+          - name: macos
+            os: macos-latest      # Apple silicon
+            r2_asset: r2-macos-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      # winit and wgpu need these headers on Linux. Windows and macOS use
+      # what the system already has.
+      - name: Install Linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libxcb1-dev libx11-dev \
+            libxrandr-dev libxi-dev libxcursor-dev libgl1-mesa-dev
+
+      - name: Version
+        id: ver
+        run: |
+          v=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* && "${GITHUB_REF_NAME#v}" != "$v" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $v"
+            exit 1
+          fi
+
+      - name: Fetch Ardon-R2 ${{ env.R2_TAG }}
+        run: |
+          mkdir -p installer/bundle
+          curl -fL --retry 3 -o r2-asset "$R2_RELEASES/$R2_TAG/${{ matrix.r2_asset }}"
+          if [[ "${{ matrix.r2_asset }}" == *.zip ]]; then
+            unzip -o r2-asset r2.exe -d installer/bundle
+            echo "ARDON_STUDIO_R2=$(cygpath -w "$PWD/installer/bundle/r2.exe")" >> "$GITHUB_ENV"
+          else
+            tar -xzf r2-asset -C installer/bundle ./r2 || tar -xzf r2-asset -C installer/bundle r2
+            chmod +x installer/bundle/r2
+            echo "ARDON_STUDIO_R2=$PWD/installer/bundle/r2" >> "$GITHUB_ENV"
+          fi
+          rm r2-asset
+          ls -l installer/bundle
+
+      - name: Test against that r2
+        run: cargo test --workspace
+
+      - name: Build Ardon Studio (release)
+        run: cargo build --release -p r2sakha
+
+      # ── Windows: Inno Setup installer ────────────────────────────────
+      - name: Package (Windows installer)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup --no-progress -y }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\ArdonStudio.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item installer\Output\ArdonStudio-Setup-*.exe out\
+
+      # ── Linux: .deb, and a .tar.gz with install.sh ───────────────────
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          mkdir -p out
+          # the folder for any Linux
+          T="dist/ArdonStudio-$V-linux-x86_64"
+          mkdir -p "$T"
+          cp target/release/ArdonStudio installer/bundle/r2 "$T/"
+          cp packaging/linux/install.sh packaging/linux/README-FIRST.txt \
+             packaging/linux/ardon-studio.desktop packaging/linux/ardon-studio.xml "$T/"
+          cp assets/logo.png "$T/ardon-studio.png"
+          cp LICENSE README.md "$T/"
+          chmod +x "$T/ArdonStudio" "$T/r2" "$T/install.sh"
+          tar -czf "out/ArdonStudio-$V-linux-x86_64.tar.gz" -C dist "ArdonStudio-$V-linux-x86_64"
+          # the Debian package
+          D="dist/deb"
+          mkdir -p "$D/DEBIAN" "$D/opt/ardon-studio" "$D/usr/bin" "$D/usr/share/applications" \
+                   "$D/usr/share/icons/hicolor/256x256/apps" "$D/usr/share/mime/packages" \
+                   "$D/usr/share/doc/ardon-studio"
+          cp "$T/ArdonStudio" "$T/r2" "$D/opt/ardon-studio/"
+          ln -s /opt/ardon-studio/ArdonStudio "$D/usr/bin/ardon-studio"
+          cp packaging/linux/ardon-studio.desktop "$D/usr/share/applications/"
+          cp packaging/linux/ardon-studio.xml "$D/usr/share/mime/packages/"
+          cp assets/logo.png "$D/usr/share/icons/hicolor/256x256/apps/ardon-studio.png"
+          cp LICENSE "$D/usr/share/doc/ardon-studio/copyright"
+          SIZE=$(du -sk "$D" | cut -f1)
+          cat > "$D/DEBIAN/control" <<EOF
+          Package: ardon-studio
+          Version: $V
+          Section: science
+          Priority: optional
+          Architecture: amd64
+          Installed-Size: $SIZE
+          Depends: libc6, libgcc-s1, libxkbcommon0, libxkbcommon-x11-0
+          Recommends: xdg-desktop-portal, libvulkan1, mesa-vulkan-drivers
+          Maintainer: Devendra Tandale <noreply@users.noreply.github.com>
+          Homepage: https://github.com/devendratandle/R2Sakha
+          Description: Ardon Studio, the IDE for Ardon-R2
+           An IDE for Ardon-R2 with two sections: Pro for writing R2 code, and
+           Sakha for menu-driven statistics. Ardon-R2 itself is included.
+          EOF
+          printf '#!/bin/sh\nupdate-mime-database /usr/share/mime >/dev/null 2>&1 || true\nupdate-desktop-database /usr/share/applications >/dev/null 2>&1 || true\n' \
+            | tee "$D/DEBIAN/postinst" > "$D/DEBIAN/postrm"
+          chmod 755 "$D/DEBIAN/postinst" "$D/DEBIAN/postrm"
+          dpkg-deb --build --root-owner-group "$D" "out/ardon-studio_${V}_amd64.deb"
+          dpkg-deb --info "out/ardon-studio_${V}_amd64.deb"
+          # the binary must start far enough to say which libraries it lacks
+          ldd target/release/ArdonStudio | grep "not found" && exit 1 || true
+
+      # ── macOS: .app inside a .dmg ────────────────────────────────────
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          mkdir -p out
+          STAGE="dist/Ardon Studio"
+          APP="$STAGE/Ardon Studio.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp target/release/ArdonStudio installer/bundle/r2 "$APP/Contents/MacOS/"
+          chmod +x "$APP/Contents/MacOS/ArdonStudio" "$APP/Contents/MacOS/r2"
+          sed "s/__VERSION__/$V/g" packaging/macos/Info.plist.in > "$APP/Contents/Info.plist"
+          # the icon, from the logo
+          ICONSET=dist/AppIcon.iconset
+          mkdir -p "$ICONSET"
+          for s in 16 32 128 256 512; do
+            sips -z $s $s assets/logo.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+            sips -z $((s*2)) $((s*2)) assets/logo.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+          done
+          iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns" || true
+          # an ad-hoc signature, which Apple silicon needs to run anything
+          codesign --force --deep -s - "$APP"
+          codesign --verify --deep "$APP"
+          cp packaging/macos/README-FIRST.txt "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname "Ardon Studio $V" -srcfolder "$STAGE" -ov -format UDZO \
+            "out/ArdonStudio-$V-macos-arm64.dmg"
+
+      - name: Keep the files with this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ardon-studio-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

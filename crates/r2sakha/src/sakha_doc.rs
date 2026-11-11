@@ -19,10 +19,15 @@ use crate::Gui;
 const BACKUP_EVERY: Duration = Duration::from_secs(30);
 
 /// Where Ardon Studio keeps its own files: `ARDON_STUDIO_CONFIG`, else the user's
-/// application-data folder.
+/// application-data folder: `%APPDATA%` on Windows, `~/Library/Application
+/// Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux.
 pub(crate) fn config_dir() -> Option<PathBuf> {
     if let Ok(d) = std::env::var("ARDON_STUDIO_CONFIG") { return Some(PathBuf::from(d)); }
-    std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME")).map(|d| PathBuf::from(d).join("Ardon Studio"))
+    let dir = |var: &str| std::env::var_os(var).filter(|d| !d.is_empty()).map(PathBuf::from);
+    let base = if cfg!(windows) { dir("APPDATA") }
+        else if cfg!(target_os = "macos") { dir("HOME").map(|h| h.join("Library").join("Application Support")) }
+        else { dir("XDG_CONFIG_HOME").or_else(|| dir("HOME").map(|h| h.join(".config"))) };
+    base.or_else(|| dir("HOME")).map(|d| d.join("Ardon Studio"))
 }
 
 pub(crate) fn backup_file() -> Option<PathBuf> { config_dir().map(|d| d.join("unsaved.sakha")) }
